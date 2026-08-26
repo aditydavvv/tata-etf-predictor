@@ -1,39 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { marketIndices } from '../data/events';
 import './MarketOverview.css';
 
 export default function MarketOverview() {
-  const [indices, setIndices] = useState(marketIndices);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIndices(prev => prev.map(idx => {
-        const fluctuation = (Math.random() - 0.48) * idx.value * 0.001;
-        const newValue = idx.value + fluctuation;
-        const newChange = newValue - idx.prevClose;
-        const newChangePercent = (newChange / idx.prevClose) * 100;
-        return {
-          ...idx,
-          value: parseFloat(newValue.toFixed(2)),
-          change: parseFloat(newChange.toFixed(2)),
-          changePercent: parseFloat(newChangePercent.toFixed(2))
-        };
-      }));
-      setLastUpdated(new Date());
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const indices = useMemo(() => marketIndices, []);
 
   return (
     <section className="market-overview">
       <div className="section-header">
         <h2>Indian Market Overview</h2>
-        <span className="last-updated">
-          <span className="live-dot"></span>
-          Live | Updated {lastUpdated.toLocaleTimeString('en-IN')}
-        </span>
       </div>
       <div className="indices-grid">
         {indices.map((idx) => (

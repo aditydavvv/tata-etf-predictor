@@ -1,10 +1,8 @@
-const TIMEOUT_MS = 8000;
+const TIMEOUT_MS = 3000;
 
-const STRATEGIES = [
-  (url) => url,
+const PROXY_STRATEGIES = [
   (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(withCacheBust(url))}`,
-  (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(withCacheBust(url))}`,
-  (url) => `https://corsproxy.io/?url=${encodeURIComponent(withCacheBust(url))}`
+  (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(withCacheBust(url))}`
 ];
 
 function withCacheBust(url) {
@@ -23,14 +21,24 @@ async function attempt(url, options) {
 
 export async function fetchResilient(url, options = {}) {
   let lastError;
-  for (const wrap of STRATEGIES) {
+
+  try {
+    const response = await attempt(url, options);
+    if (response.ok) return response;
+    lastError = new Error(`HTTP ${response.status}`);
+  } catch (error) {
+    lastError = error;
+  }
+
+  for (const wrap of PROXY_STRATEGIES) {
     try {
       const response = await attempt(wrap(url), options);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response;
+      if (response.ok) return response;
+      lastError = new Error(`HTTP ${response.status}`);
     } catch (error) {
       lastError = error;
     }
   }
+
   throw lastError;
 }

@@ -1,8 +1,9 @@
+import { useMemo } from 'react';
 import { sectorImpactData } from '../data/events';
 import './SectorImpact.css';
 
-export default function SectorImpact() {
-  const sorted = [...sectorImpactData].sort((a, b) => b.impact - a.impact);
+function SectorImpact() {
+  const sorted = useMemo(() => [...sectorImpactData].sort((a, b) => b.impact - a.impact), []);
 
   return (
     <section className="sector-impact">
@@ -39,3 +40,5 @@ export default function SectorImpact() {
     </section>
   );
 }
+
+export default SectorImpact;

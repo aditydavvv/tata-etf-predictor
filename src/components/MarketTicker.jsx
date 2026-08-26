@@ -1,8 +1,8 @@
-import { useMarketData } from '../hooks/useMarketData';
+import { useMarketDataContext } from '../hooks/useMarketDataContext';
 import './MarketTicker.css';
 
 export default function MarketTicker() {
-  const { commodities, currency, metalETFs } = useMarketData();
+  const { commodities, currency, metalETFs } = useMarketDataContext();
   const items = [];
 
   const push = (label, icon, price, change) => {

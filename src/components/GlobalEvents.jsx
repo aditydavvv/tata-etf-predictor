@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { globalEvents, categoryColors } from '../data/events';
 import EventCard from './EventCard';
 import './GlobalEvents.css';
@@ -7,29 +7,35 @@ export default function GlobalEvents() {
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('severity');
 
-  const categories = [
+  const categories = useMemo(() => [
     { key: 'all', label: 'All Events', count: globalEvents.length },
     ...Object.entries(categoryColors).map(([key, val]) => ({
       key,
       label: val.label,
       count: globalEvents.filter(e => e.category === key).length
     }))
-  ];
+  ], []);
 
-  let filtered = filter === 'all' ? [...globalEvents] : globalEvents.filter(e => e.category === filter);
+  const filtered = useMemo(() => {
+    let result = filter === 'all' ? [...globalEvents] : globalEvents.filter(e => e.category === filter);
 
-  if (sortBy === 'severity') {
-    const order = { high: 0, medium: 1, low: 2 };
-    filtered.sort((a, b) => order[a.severity] - order[b.severity]);
-  } else if (sortBy === 'impact') {
-    filtered.sort((a, b) => b.impact.magnitude - a.impact.magnitude);
-  } else if (sortBy === 'recent') {
-    filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  }
+    if (sortBy === 'severity') {
+      const order = { high: 0, medium: 1, low: 2 };
+      result.sort((a, b) => order[a.severity] - order[b.severity]);
+    } else if (sortBy === 'impact') {
+      result.sort((a, b) => b.impact.magnitude - a.impact.magnitude);
+    } else if (sortBy === 'recent') {
+      result.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }
 
-  const positiveCount = globalEvents.filter(e => e.impact.direction === 'positive').length;
-  const negativeCount = globalEvents.filter(e => e.impact.direction === 'negative').length;
-  const mixedCount = globalEvents.filter(e => e.impact.direction === 'mixed').length;
+    return result;
+  }, [filter, sortBy]);
+
+  const sentimentCounts = useMemo(() => ({
+    positive: globalEvents.filter(e => e.impact.direction === 'positive').length,
+    negative: globalEvents.filter(e => e.impact.direction === 'negative').length,
+    mixed: globalEvents.filter(e => e.impact.direction === 'mixed').length
+  }), []);
 
   return (
     <section className="global-events">
@@ -41,13 +47,13 @@ export default function GlobalEvents() {
         <div className="sentiment-label">Overall Market Sentiment:</div>
         <div className="sentiment-indicators">
           <span className="sentiment-item positive">
-            <span className="dot"></span> Bullish: {positiveCount}
+            <span className="dot"></span> Bullish: {sentimentCounts.positive}
           </span>
           <span className="sentiment-item negative">
-            <span className="dot"></span> Bearish: {negativeCount}
+            <span className="dot"></span> Bearish: {sentimentCounts.negative}
           </span>
           <span className="sentiment-item mixed">
-            <span className="dot"></span> Mixed: {mixedCount}
+            <span className="dot"></span> Mixed: {sentimentCounts.mixed}
           </span>
         </div>
       </div>
