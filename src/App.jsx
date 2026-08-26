@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy } from 'react';
 import Header from './components/Header';
 import MarketTicker from './components/MarketTicker';
 import GoldSilverPredictor from './components/GoldSilverPredictor';
@@ -21,13 +21,11 @@ function AppContent() {
       <MarketTicker />
       <main className="main-content">
         <GoldSilverPredictor />
-        <Suspense fallback={<div className="loading-placeholder">Loading...</div>}>
-          <MarketOverview />
-          <EventTimeline />
-          <SectorImpact />
-          <GlobalEvents />
-          <LiveNews />
-        </Suspense>
+        <MarketOverview />
+        <EventTimeline />
+        <SectorImpact />
+        <GlobalEvents />
+        <LiveNews />
       </main>
       <footer className="app-footer">
         <p>Tata ETF Predictor | Data is for informational purposes only | Not financial advice</p>

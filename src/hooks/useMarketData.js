@@ -60,7 +60,7 @@ export function useMarketData() {
   const [commodities, setCommodities] = useState({});
   const [currency, setCurrency] = useState({});
   const [metalETFs, setMetalETFs] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [marketStatus, setMarketStatus] = useState('loading');
