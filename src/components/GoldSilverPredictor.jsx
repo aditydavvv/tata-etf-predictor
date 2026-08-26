@@ -194,8 +194,8 @@ export default function GoldSilverPredictor() {
   return (
     <section className="gold-silver-section">
       <div className="section-header">
-        <h2>Tata Silver ETF Predictions</h2>
-        <span className="subtitle">Real-time analysis based on global silver prices, market depth & sentiment</span>
+        <h2>Tata ETF Predictions</h2>
+        <span className="subtitle">Real-time analysis based on global gold & silver prices, market depth & sentiment</span>
       </div>
 
       <div className="current-prices">
@@ -250,6 +250,7 @@ export default function GoldSilverPredictor() {
 
       <div className="chart-tabs">
         <button className={`chart-tab ${activeChart === 'gold-etf' ? 'active gold' : ''}`} onClick={() => setActiveChart('gold-etf')}>Gold ETF</button>
+        <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
         <button className={`chart-tab ${activeChart === 'tata-silver-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-silver-etf')}>Tata Silver ETF</button>
       </div>
 

@@ -19,8 +19,8 @@ export default function Header({ marketStatus = 'loading' }) {
             <span className="logo-symbol">📊</span>
           </div>
           <div className="logo-text">
-            <h1 className="text-gradient">Tata Silver ETF Predictor</h1>
-            <p className="tagline">Safe Haven Asset Intelligence</p>
+            <h1 className="text-gradient">Tata ETF Predictor</h1>
+            <p className="tagline">Gold & Silver ETF Intelligence</p>
           </div>
         </div>
         <div className="header-info">

@@ -30,7 +30,7 @@ function AppContent() {
         </Suspense>
       </main>
       <footer className="app-footer">
-        <p>Global Market Events | Data is for informational purposes only | Not financial advice</p>
+        <p>Tata ETF Predictor | Data is for informational purposes only | Not financial advice</p>
       </footer>
     </div>
   );

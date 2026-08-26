@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, PointElement, LineElement,
@@ -10,6 +10,9 @@ import { fetchGrowwETFData } from '../services/growwService';
 import './MetalPriceChart.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+
+const chartCache = new Map();
+const CACHE_TTL = 3 * 60 * 1000;
 
 const TIMEFRAMES = {
   '1W': { range: '5d', interval: '15m' },
@@ -27,6 +30,15 @@ const ETF_CONFIG = {
     emoji: '🥇',
     color: '#ffc107',
     bgColor: 'rgba(255,193,7,0.1)',
+    currency: '₹'
+  },
+  'tata-gold-etf': {
+    symbol: 'TATAGOLD.NS',
+    name: 'Tata Gold ETF',
+    fullName: 'Tata Gold Exchange Traded Fund',
+    emoji: '🏆',
+    color: '#f59e0b',
+    bgColor: 'rgba(245,158,11,0.1)',
     currency: '₹'
   },
   'tata-silver-etf': {
@@ -88,26 +100,40 @@ export default function MetalPriceChart({ etfType = 'gold-etf' }) {
   const [showPred, setShowPred] = useState(true);
   const [showSMA, setShowSMA] = useState(true);
   const [liveData, setLiveData] = useState(null);
+  const liveFetchedRef = useRef(null);
 
   const config = ETF_CONFIG[etfType] || ETF_CONFIG['gold-etf'];
 
+  const fetchChartData = useCallback(async (tf) => {
+    const cacheKey = `${config.symbol}_${tf}`;
+    const cached = chartCache.get(cacheKey);
+    if (cached && Date.now() - cached.time < CACHE_TTL) {
+      setData(cached.data);
+      setLoading(false);
+      return;
+    }
+    const result = await fetchHistoricalData(config.symbol, TIMEFRAMES[tf].range, TIMEFRAMES[tf].interval);
+    chartCache.set(cacheKey, { data: result, time: Date.now() });
+    setData(result);
+    setLoading(false);
+  }, [config.symbol]);
+
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const [historical, live] = await Promise.allSettled([
-        fetchHistoricalData(config.symbol, TIMEFRAMES[timeframe].range, TIMEFRAMES[timeframe].interval),
-        fetchGrowwETFData(etfType)
-      ]);
-      if (!cancelled) {
-        if (historical.status === 'fulfilled') setData(historical.value);
-        if (live.status === 'fulfilled' && live.value) setLiveData(live.value);
-        setLoading(false);
-      }
-    };
-    load();
+    setLoading(true);
+    fetchChartData(timeframe).then(() => { if (cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [etfType, timeframe, config.symbol]);
+  }, [timeframe, fetchChartData]);
+
+  useEffect(() => {
+    if (liveFetchedRef.current === etfType) return;
+    liveFetchedRef.current = etfType;
+    let cancelled = false;
+    fetchGrowwETFData(etfType).then(d => {
+      if (!cancelled && d) setLiveData(d);
+    });
+    return () => { cancelled = true; };
+  }, [etfType]);
 
   const prices = data.map(d => d.close).filter(Boolean);
   if (liveData?.price && prices.length > 0) {
@@ -165,6 +191,7 @@ export default function MetalPriceChart({ etfType = 'gold-etf' }) {
 
   const opts = {
     responsive: true, maintainAspectRatio: false,
+    animation: { duration: 300 },
     interaction: { intersect: false, mode: 'index' },
     plugins: {
       legend: { display: true, position: 'top', align: 'end', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 15, usePointStyle: true } },
@@ -239,7 +266,11 @@ export default function MetalPriceChart({ etfType = 'gold-etf' }) {
 
       <div className="chart-wrapper">
         {loading ? (
-          <div className="chart-loading"><div className="spinner"></div><p>Loading chart data...</p></div>
+          <div className="chart-skeleton">
+            <div className="skeleton-line" style={{width:'60%',height:'20px'}}></div>
+            <div className="skeleton-chart"></div>
+            <div className="skeleton-line" style={{width:'40%',height:'14px'}}></div>
+          </div>
         ) : prices.length === 0 ? (
           <div className="chart-empty"><p>No data available</p></div>
         ) : (
