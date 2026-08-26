@@ -23,15 +23,6 @@ const TIMEFRAMES = {
 };
 
 const ETF_CONFIG = {
-  'gold-etf': {
-    symbol: 'GOLDBEES.NS',
-    name: 'Gold ETF',
-    fullName: 'Nippon India Gold BeES',
-    emoji: '🥇',
-    color: '#ffc107',
-    bgColor: 'rgba(255,193,7,0.1)',
-    currency: '₹'
-  },
   'tata-gold-etf': {
     symbol: 'TATAGOLD.NS',
     name: 'Tata Gold ETF',
@@ -93,7 +84,7 @@ function calculateSMA(prices, period = 20) {
   });
 }
 
-export default function MetalPriceChart({ etfType = 'gold-etf' }) {
+export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('1M');

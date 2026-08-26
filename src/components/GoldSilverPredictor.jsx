@@ -10,7 +10,7 @@ import './GoldSilverPredictor.css';
 export default function GoldSilverPredictor() {
   const [selectedEvent, setSelectedEvent] = useState(globalEvents[0]);
   const [activeTab, setActiveTab] = useState('both');
-  const [activeChart, setActiveChart] = useState('gold-etf');
+  const [activeChart, setActiveChart] = useState('tata-gold-etf');
   const [priceChanges, setPriceChanges] = useState({ gold: null, silver: null });
   const [marketDepth, setMarketDepth] = useState({ gold: null, silver: null, tataSilver: null });
   const [silverAnalysis, setSilverAnalysis] = useState(null);
@@ -249,7 +249,6 @@ export default function GoldSilverPredictor() {
       </div>
 
       <div className="chart-tabs">
-        <button className={`chart-tab ${activeChart === 'gold-etf' ? 'active gold' : ''}`} onClick={() => setActiveChart('gold-etf')}>Gold ETF</button>
         <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
         <button className={`chart-tab ${activeChart === 'tata-silver-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-silver-etf')}>Tata Silver ETF</button>
       </div>

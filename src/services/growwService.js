@@ -3,7 +3,6 @@ import { fetchResilient } from '../utils/fetchResilient';
 const GROWW_URL = 'https://groww.in';
 
 const ETF_PAGES = {
-  'gold-etf': { path: '/etfs/nippon-india-gold-bes', name: 'Gold ETF', fullName: 'Nippon India Gold BeES', symbol: 'GOLDBEES' },
   'tata-gold-etf': { path: '/etfs/tata-gold-exchange-traded-fund', name: 'Tata Gold ETF', fullName: 'Tata Gold Exchange Traded Fund', symbol: 'TATAGOLD' },
   'tata-silver-etf': { path: '/etfs/tata-silver-exchange-traded-fund', name: 'Tata Silver ETF', fullName: 'Tata Silver Exchange Traded Fund', symbol: 'TATSILV' }
 };
