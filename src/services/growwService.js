@@ -1,4 +1,6 @@
-const GROWW_BASE = '/groww';
+import { fetchResilient } from '../utils/fetchResilient';
+
+const GROWW_URL = 'https://groww.in';
 
 const ETF_PAGES = {
   'gold-etf': { path: '/etfs/nippon-india-gold-bes', name: 'Gold ETF', fullName: 'Nippon India Gold BeES', symbol: 'GOLDBEES' },
@@ -43,8 +45,10 @@ export async function fetchGrowwETFData(etfType) {
   if (!config) return null;
 
   try {
-    const response = await fetch(`${GROWW_BASE}${config.path}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const url = import.meta.env.DEV
+      ? `/groww${config.path}`
+      : `${GROWW_URL}${config.path}`;
+    const response = await fetchResilient(url);
     const html = await response.text();
 
     const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');

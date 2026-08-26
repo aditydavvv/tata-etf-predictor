@@ -17,7 +17,8 @@ const SYMBOLS = {
   silverETF: 'SLV',
   goldETFIndia: 'GOLDBEES.NS',
   silverETFIndia: 'SILVERBEES.NS',
-  tataSilverETF: 'TATSILV.NS'
+  tataSilverETF: 'TATSILV.NS',
+  tataGoldETF: 'TATAGOLD.NS'
 };
 
 import { fetchResilient } from '../utils/fetchResilient';
@@ -186,8 +187,10 @@ function generateFallbackData(symbol, range) {
   const now = new Date();
   const days = range === '5d' ? 5 : range === '1mo' ? 30 : range === '3mo' ? 90 : range === '6mo' ? 180 : 365;
   const priceMap = {
-    'GC=F': 3350, 'SI=F': 38, 'GLD': 235, 'SLV': 28,
-    'GOLDBEES.NS': 58, 'SILVERBEES.NS': 72, 'TATSILV.NS': 22
+    'GC=F': 3385, 'SI=F': 38.5, 'CL=F': 62, 'BZ=F': 66,
+    'USDINR=X': 85.5,
+    'GLD': 237, 'SLV': 28.5,
+    'GOLDBEES.NS': 59, 'SILVERBEES.NS': 73, 'TATSILV.NS': 22, 'TATAGOLD.NS': 58
   };
   const basePrice = priceMap[symbol] || 100;
   const volMap = { 'SI=F': 0.025, 'SILVERBEES.NS': 0.025, 'TATASILVE.NS': 0.025 };
