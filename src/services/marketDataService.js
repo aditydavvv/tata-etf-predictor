@@ -21,7 +21,8 @@ const SYMBOLS = {
   tataGoldETF: 'TATAGOLD.NS'
 };
 
-import { fetchResilient } from '../utils/fetchResilient';
+import { fetchResilient } from '../utils/fetchResilient.js';
+import { FIVE_YEAR_SILVER_DATA } from '../data/fiveYearSilverData.js';
 
 export const YAHOO_CHART_BASE = YAHOO_FINANCE_BASE;
 
@@ -93,10 +94,16 @@ export async function fetchCommodityPrices() {
   ]);
   const toCommodity = (result, unit, type) => {
     if (!result) return null;
+    const prev = result.meta.chartPreviousClose || result.meta.previousClose;
+    const cur = result.meta.regularMarketPrice;
+    const change = cur - prev;
+    const changePercent = prev ? (change / prev) * 100 : 0;
     return {
-      price: result.meta.regularMarketPrice,
+      price: cur,
       currency: result.meta.currency || 'USD',
-      change: result.meta.regularMarketPrice - (result.meta.chartPreviousClose || result.meta.previousClose),
+      change: parseFloat(change.toFixed(2)),
+      changePercent: parseFloat(changePercent.toFixed(2)),
+      prevClose: prev,
       unit,
       type
     };
@@ -184,17 +191,29 @@ export async function fetchHistoricalData(symbol, range = '1mo', interval = '1d'
 }
 
 function generateFallbackData(symbol, range) {
+  if (symbol === 'TATSILV.NS' || symbol === 'SILVERBEES.NS' || symbol === 'SI=F') {
+    const days = range === '5d' ? 5 : range === '1mo' ? 22 : range === '3mo' ? 66 : range === '6mo' ? 130 : range === '1y' ? 252 : range === '3y' ? 756 : FIVE_YEAR_SILVER_DATA.length;
+    const slice = FIVE_YEAR_SILVER_DATA.slice(Math.max(0, FIVE_YEAR_SILVER_DATA.length - days));
+    return slice.map(d => ({
+      date: new Date(d.date),
+      open: symbol === 'SI=F' ? d.spotSilver : d.open,
+      high: symbol === 'SI=F' ? d.spotSilver * 1.01 : d.high,
+      low: symbol === 'SI=F' ? d.spotSilver * 0.99 : d.low,
+      close: symbol === 'SI=F' ? d.spotSilver : d.close,
+      volume: d.volume
+    }));
+  }
+
   const now = new Date();
-  const days = range === '5d' ? 5 : range === '1mo' ? 30 : range === '3mo' ? 90 : range === '6mo' ? 180 : 365;
+  const days = range === '5d' ? 5 : range === '1mo' ? 30 : range === '3mo' ? 90 : range === '6mo' ? 180 : range === '1y' ? 365 : range === '3y' ? 1095 : 1825;
   const priceMap = {
     'GC=F': 3385, 'SI=F': 38.5, 'CL=F': 62, 'BZ=F': 66,
-    'USDINR=X': 85.5,
-    'GLD': 237, 'SLV': 28.5,
-    'GOLDBEES.NS': 59, 'SILVERBEES.NS': 73, 'TATSILV.NS': 22, 'TATAGOLD.NS': 58
+    'USDINR=X': 87.5,
+    'GLD': 310, 'SLV': 35.5,
+    'GOLDBEES.NS': 88, 'SILVERBEES.NS': 118, 'TATSILV.NS': 120, 'TATAGOLD.NS': 88
   };
   const basePrice = priceMap[symbol] || 100;
-  const volMap = { 'SI=F': 0.025, 'SILVERBEES.NS': 0.025, 'TATASILVE.NS': 0.025 };
-  const volatility = volMap[symbol] || 0.012;
+  const volatility = 0.012;
   const data = [];
   let price = basePrice * (1 + (Math.random() - 0.5) * 0.02);
   for (let i = 0; i < days; i++) {

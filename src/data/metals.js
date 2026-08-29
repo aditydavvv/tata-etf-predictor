@@ -250,8 +250,8 @@ export function predictETFReaction(event, metal, recentPriceChange = null, marke
   if (!data) return null;
 
   const matchingReactions = data.historicalReactions.filter(r =>
-    r.category === event.category ||
-    event.tags?.some(tag =>
+    (event?.category && r.category === event.category) ||
+    event?.tags?.some(tag =>
       r.event.toLowerCase().includes(tag.toLowerCase()) ||
       tag.toLowerCase().includes(r.event.toLowerCase().split(' ')[0].toLowerCase())
     )

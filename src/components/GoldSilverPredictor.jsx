@@ -5,21 +5,23 @@ import { fetchCommodityPrices } from '../services/marketDataService';
 import { fetchAllMarketDepth } from '../services/marketDepthService';
 import { fetchSilverAnalysis, predictTataSilverETF } from '../services/silverAnalysisService';
 import MetalPriceChart from './MetalPriceChart';
+import ModelTrainingDashboard from './ModelTrainingDashboard';
 import './GoldSilverPredictor.css';
 
 export default function GoldSilverPredictor() {
   const [selectedEvent, setSelectedEvent] = useState(globalEvents[0]);
   const [activeTab, setActiveTab] = useState('both');
-  const [activeChart, setActiveChart] = useState('tata-gold-etf');
+  const [activeChart, setActiveChart] = useState('tata-silver-etf');
   const [priceChanges, setPriceChanges] = useState({ gold: null, silver: null });
   const [marketDepth, setMarketDepth] = useState({ gold: null, silver: null, tataSilver: null });
   const [silverAnalysis, setSilverAnalysis] = useState(null);
+  const [mlModelOutput, setMlModelOutput] = useState(null);
 
   useEffect(() => {
     const loadPrices = async () => {
       const prices = await fetchCommodityPrices();
-      if (prices.silver) setPriceChanges(prev => ({ ...prev, silver: prices.silver.changePercent }));
-      if (prices.gold) setPriceChanges(prev => ({ ...prev, gold: prices.gold.changePercent }));
+      if (prices?.silver) setPriceChanges(prev => ({ ...prev, silver: prices.silver.changePercent }));
+      if (prices?.gold) setPriceChanges(prev => ({ ...prev, gold: prices.gold.changePercent }));
     };
     const loadDepth = async () => {
       const depth = await fetchAllMarketDepth();
@@ -43,12 +45,12 @@ export default function GoldSilverPredictor() {
   }, []);
 
   const goldPrediction = predictETFReaction(selectedEvent, 'gold', priceChanges.gold, marketDepth.gold);
-  const tataSilverPrediction = predictTataSilverETF(silverAnalysis, marketDepth.tataSilver);
+  const tataSilverPrediction = predictTataSilverETF(silverAnalysis, marketDepth.tataSilver, selectedEvent, mlModelOutput);
 
   const goldData = metalETFs.gold;
   const silverData = metalETFs.silver;
 
-  const usdRate = silverAnalysis?.usdInr?.rate;
+  const usdRate = silverAnalysis?.usdInr?.rate || 87.5;
   const liveGoldPrice = silverAnalysis?.gold?.price && usdRate
     ? Math.round((silverAnalysis.gold.price / 31.1035) * 10 * usdRate)
     : null;
@@ -57,6 +59,7 @@ export default function GoldSilverPredictor() {
     : null;
   const goldDisplay = liveGoldPrice || goldData.currentPrice;
   const silverDisplay = liveSilverPrice || silverData.currentPrice;
+  const currentRatio = parseFloat(((goldDisplay * 100) / silverDisplay).toFixed(1));
 
   const renderPrediction = (prediction, metal, data) => {
     if (!prediction) return null;
@@ -98,7 +101,7 @@ export default function GoldSilverPredictor() {
           </div>
           <div className="pred-stat">
             <span className="pred-stat-label">Avg Historical Reaction</span>
-            <span className={`pred-stat-value ${dirColor}`}>{prediction.avgReaction}</span>
+            <span className={`pred-stat-value ${dirColor}`}>{prediction.avgReaction || '±3.5%'}</span>
           </div>
         </div>
 
@@ -179,8 +182,8 @@ export default function GoldSilverPredictor() {
                   {prediction.marketDepth.signal.bias === 'neutral' && '➡️'}
                 </span>
                 <span className="signal-text">
-                  {prediction.marketDepth.signal.bias === 'buyers' && `Buyers dominating (+${prediction.marketDepth.signal.strength.toFixed(0)}% bias)`}
-                  {prediction.marketDepth.signal.bias === 'sellers' && `Sellers dominating (+${prediction.marketDepth.signal.strength.toFixed(0)}% bias)`}
+                  {prediction.marketDepth.signal.bias === 'buyers' && `Buyers dominating (+${prediction.marketDepth.signal.strength?.toFixed(0)}% bias)`}
+                  {prediction.marketDepth.signal.bias === 'sellers' && `Sellers dominating (+${prediction.marketDepth.signal.strength?.toFixed(0)}% bias)`}
                   {prediction.marketDepth.signal.bias === 'neutral' && 'Balanced market depth'}
                 </span>
               </div>
@@ -194,8 +197,8 @@ export default function GoldSilverPredictor() {
   return (
     <section className="gold-silver-section">
       <div className="section-header">
-        <h2>Tata ETF Predictions</h2>
-        <span className="subtitle">Real-time analysis based on global gold & silver prices, market depth & sentiment</span>
+        <h2>Tata ETF Predictions & 5-Year Quantitative Forecasting</h2>
+        <span className="subtitle">Real-time analysis based on 5-year historical data, global precious metals, event shocks & order book depth</span>
       </div>
 
       <div className="current-prices">
@@ -219,11 +222,16 @@ export default function GoldSilverPredictor() {
           <span className="price-icon">⚖️</span>
           <div className="price-info">
             <span className="price-label">Gold/Silver Ratio</span>
-            <span className="price-value">{(goldDisplay * 100 / silverDisplay).toFixed(1)}</span>
-            <span className="price-unit">Silver {85 > (goldDisplay * 100 / silverDisplay) ? 'undervalued' : 'near fair'}</span>
+            <span className="price-value">{currentRatio}</span>
+            <span className="price-unit">
+              Silver {currentRatio >= 80 ? 'undervalued vs Gold' : currentRatio <= 60 ? 'rich vs Gold' : 'fairly valued'}
+            </span>
           </div>
         </div>
       </div>
+
+      {/* 5-Year AI/ML ETF Training & Forecasting Engine */}
+      <ModelTrainingDashboard onPredictionUpdate={setMlModelOutput} />
 
       <div className="event-selector">
         <label>Select a Global Event to Predict Impact:</label>
@@ -249,27 +257,26 @@ export default function GoldSilverPredictor() {
       </div>
 
       <div className="chart-tabs">
-        <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
         <button className={`chart-tab ${activeChart === 'tata-silver-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-silver-etf')}>Tata Silver ETF</button>
+        <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
       </div>
 
       <MetalPriceChart etfType={activeChart} />
 
       <div className="metal-tabs">
         <button className={`metal-tab ${activeTab === 'both' ? 'active' : ''}`} onClick={() => setActiveTab('both')}>Both</button>
-        <button className={`metal-tab gold ${activeTab === 'gold' ? 'active' : ''}`} onClick={() => setActiveTab('gold')}>Gold Only</button>
         <button className={`metal-tab silver ${activeTab === 'silver' ? 'active' : ''}`} onClick={() => setActiveTab('silver')}>Tata Silver Only</button>
+        <button className={`metal-tab gold ${activeTab === 'gold' ? 'active' : ''}`} onClick={() => setActiveTab('gold')}>Gold Only</button>
       </div>
 
       <div className="predictions-container">
-        {(activeTab === 'both' || activeTab === 'gold') && renderPrediction(goldPrediction, 'gold', goldData)}
         {(activeTab === 'both' || activeTab === 'silver') && tataSilverPrediction && (
           <div className={`prediction-card ${tataSilverPrediction.prediction === 'positive' ? 'positive' : tataSilverPrediction.prediction === 'negative' ? 'negative' : 'neutral'}`}>
             <div className="pred-header">
               <div className="pred-metal-icon">🏆</div>
               <div>
                 <h3 className="pred-metal-name">Tata Silver ETF Prediction</h3>
-                <p className="pred-etf">Tata Silver Exchange Traded Fund</p>
+                <p className="pred-etf">Tata Silver Exchange Traded Fund (TATSILV)</p>
               </div>
               <div className={`pred-direction-badge ${tataSilverPrediction.prediction === 'positive' ? 'positive' : tataSilverPrediction.prediction === 'negative' ? 'negative' : 'neutral'}`}>
                 {tataSilverPrediction.prediction === 'positive' ? '📈 BULLISH' :
@@ -294,7 +301,7 @@ export default function GoldSilverPredictor() {
                 <span className="pred-stat-value timeframe">{tataSilverPrediction.timeframe}</span>
               </div>
               <div className="pred-stat">
-                <span className="pred-stat-label">Silver Trend</span>
+                <span className="pred-stat-label">5-Year Trend Fit</span>
                 <span className={`pred-stat-value ${tataSilverPrediction.silverData?.trend?.direction === 'up' ? 'positive' : tataSilverPrediction.silverData?.trend?.direction === 'down' ? 'negative' : 'neutral'}`}>
                   {tataSilverPrediction.silverData?.trend?.direction?.toUpperCase()} ({tataSilverPrediction.silverData?.trend?.strength}%)
                 </span>
@@ -308,7 +315,7 @@ export default function GoldSilverPredictor() {
 
             {tataSilverPrediction.analysis && tataSilverPrediction.analysis.signals.length > 0 && (
               <div className="pred-pattern">
-                <h4>Market Signals</h4>
+                <h4>5-Year Market & Fundamental Signals</h4>
                 <div className="signal-tags">
                   {tataSilverPrediction.analysis.signals.map((signal, i) => (
                     <span key={i} className="signal-tag">{signal}</span>
@@ -350,25 +357,14 @@ export default function GoldSilverPredictor() {
             )}
           </div>
         )}
+        {(activeTab === 'both' || activeTab === 'gold') && renderPrediction(goldPrediction, 'gold', goldData)}
       </div>
 
       <div className="historical-reference">
-        <h3>📚 Historical Event-Reaction Reference</h3>
+        <h3>📚 Historical Event-Reaction Reference (5-Year Catalog)</h3>
         <p className="ref-subtitle">How Gold & Silver ETFs typically react to major global events</p>
 
         <div className="reference-grid">
-          <div className="ref-column">
-            <h4>🥇 Gold Reactions</h4>
-            {goldData.historicalReactions.map((reaction, i) => (
-              <div key={i} className="ref-item">
-                <div className="ref-event-name">{reaction.event}</div>
-                <div className={`ref-direction ${reaction.direction}`}>
-                  {reaction.direction === 'positive' ? '▲' : '▼'} {reaction.avgReaction}
-                </div>
-                <div className="ref-pattern">{reaction.pattern}</div>
-              </div>
-            ))}
-          </div>
           <div className="ref-column">
             <h4>🥈 Silver Reactions</h4>
             {silverData.historicalReactions.map((reaction, i) => (
@@ -376,6 +372,18 @@ export default function GoldSilverPredictor() {
                 <div className="ref-event-name">{reaction.event}</div>
                 <div className={`ref-direction ${reaction.direction}`}>
                   {reaction.direction === 'positive' ? '▲' : reaction.direction === 'negative' ? '▼' : '↔'} {reaction.avgReaction}
+                </div>
+                <div className="ref-pattern">{reaction.pattern}</div>
+              </div>
+            ))}
+          </div>
+          <div className="ref-column">
+            <h4>🥇 Gold Reactions</h4>
+            {goldData.historicalReactions.map((reaction, i) => (
+              <div key={i} className="ref-item">
+                <div className="ref-event-name">{reaction.event}</div>
+                <div className={`ref-direction ${reaction.direction}`}>
+                  {reaction.direction === 'positive' ? '▲' : '▼'} {reaction.avgReaction}
                 </div>
                 <div className="ref-pattern">{reaction.pattern}</div>
               </div>
