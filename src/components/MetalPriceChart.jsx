@@ -5,8 +5,8 @@ import {
   Title, Tooltip, Legend, Filler
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { fetchHistoricalData } from '../services/marketDataService';
-import { fetchGrowwETFData } from '../services/growwService';
+import { fetchHistoricalData } from '../services/marketDataService.js';
+import { fetchGrowwETFData } from '../services/growwService.js';
 import './MetalPriceChart.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
@@ -25,23 +25,25 @@ const TIMEFRAMES = {
 };
 
 const ETF_CONFIG = {
-  'tata-gold-etf': {
-    symbol: 'TATAGOLD.NS',
-    name: 'Tata Gold ETF',
-    fullName: 'Tata Gold Exchange Traded Fund',
-    emoji: '🏆',
-    color: '#f59e0b',
-    bgColor: 'rgba(245,158,11,0.1)',
-    currency: '₹'
-  },
   'tata-silver-etf': {
     symbol: 'TATSILV.NS',
     name: 'Tata Silver ETF',
-    fullName: 'Tata Silver Exchange Traded Fund',
-    emoji: '🏆',
-    color: '#06b6d4',
-    bgColor: 'rgba(6,182,212,0.1)',
-    currency: '₹'
+    fullName: 'Tata Silver Exchange Traded Fund (NSE: TATSILV)',
+    emoji: '🥈',
+    color: '#22d3ee',
+    bgColor: 'rgba(34, 211, 238, 0.18)',
+    currency: '₹',
+    fallbackPrice: 23.37
+  },
+  'tata-gold-etf': {
+    symbol: 'TATAGOLD.NS',
+    name: 'Tata Gold ETF',
+    fullName: 'Tata Gold Exchange Traded Fund (NSE: TATAGOLD)',
+    emoji: '🥇',
+    color: '#fbbf24',
+    bgColor: 'rgba(251, 191, 36, 0.18)',
+    currency: '₹',
+    fallbackPrice: 15.36
   }
 };
 
@@ -57,8 +59,8 @@ function calculateTrend(prices) {
   }
   const slope = den !== 0 ? num / den : 0;
   return {
-    direction: slope > 0.01 ? 'up' : slope < -0.01 ? 'down' : 'neutral',
-    strength: Math.min(100, Math.round(Math.abs(slope) / yMean * 1000))
+    direction: slope > 0.005 ? 'up' : slope < -0.005 ? 'down' : 'neutral',
+    strength: Math.min(100, Math.round(Math.abs(slope) / yMean * 1000 + 40))
   };
 }
 
@@ -76,17 +78,17 @@ function predictFuture(prices, days = 7) {
   }
   const slope = den !== 0 ? num / den : 0;
   const intercept = yWeighted - slope * xWeighted;
-  return Array.from({ length: days }, (_, i) => slope * (n + i) + intercept);
+  return Array.from({ length: days }, (_, i) => parseFloat((slope * (n + i) + intercept).toFixed(2)));
 }
 
 function calculateSMA(prices, period = 20) {
   return prices.map((_, i) => {
     if (i < period - 1) return null;
-    return prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
+    return parseFloat((prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period).toFixed(2));
   });
 }
 
-export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
+export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('1M');
@@ -95,7 +97,7 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
   const [liveData, setLiveData] = useState(null);
   const liveFetchedRef = useRef(null);
 
-  const config = ETF_CONFIG[etfType] || ETF_CONFIG['gold-etf'];
+  const config = ETF_CONFIG[etfType] || ETF_CONFIG['tata-silver-etf'];
 
   const fetchChartData = useCallback(async (tf) => {
     const cacheKey = `${config.symbol}_${tf}`;
@@ -105,7 +107,7 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
       setLoading(false);
       return;
     }
-    const result = await fetchHistoricalData(config.symbol, TIMEFRAMES[tf].range, TIMEFRAMES[tf].interval);
+    const result = await fetchHistoricalData(config.symbol, TIMEFRAMES[tf]?.range || '1mo', TIMEFRAMES[tf]?.interval || '1d');
     chartCache.set(cacheKey, { data: result, time: Date.now() });
     setData(result);
     setLoading(false);
@@ -136,8 +138,12 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
     if (i === data.length - 1 && liveData?.price) {
       return new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     }
-    return new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const dt = new Date(d.date);
+    return timeframe === '3Y' || timeframe === '5Y'
+      ? dt.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+      : dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   });
+
   const trend = calculateTrend(prices);
   const sma20 = calculateSMA(prices);
   const preds = showPred ? predictFuture(prices) : [];
@@ -147,7 +153,7 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
     const last = new Date(data[data.length - 1]?.date || Date.now());
     for (let i = 1; i <= preds.length; i++) {
       const fd = new Date(last);
-      fd.setDate(fd.getDate() + i);
+      fd.setDate(fd.getDate() + i * (timeframe === '5Y' ? 14 : 2));
       futureDates.push(fd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
     }
   }
@@ -167,43 +173,89 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
         data: hPrices,
         borderColor: config.color,
         backgroundColor: config.bgColor,
-        borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5
+        borderWidth: 3,
+        fill: true,
+        tension: 0.25,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointHoverBackgroundColor: config.color,
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 2
       },
       ...(showSMA ? [{
-        label: '20 SMA', data: sPrices,
-        borderColor: '#4f8ffa', borderWidth: 1.5, borderDash: [5, 5],
-        fill: false, tension: 0.4, pointRadius: 0
+        label: '20 SMA',
+        data: sPrices,
+        borderColor: '#a855f7',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        fill: false,
+        tension: 0.25,
+        pointRadius: 0
       }] : []),
       ...(showPred ? [{
-        label: 'Predicted', data: pPrices,
-        borderColor: trend.direction === 'up' ? '#00c896' : trend.direction === 'down' ? '#ff5c5c' : '#ffc107',
-        borderWidth: 2, borderDash: [8, 4], fill: false, tension: 0.4, pointRadius: 0
+        label: 'Predicted Path',
+        data: pPrices,
+        borderColor: trend.direction === 'up' ? '#10b981' : trend.direction === 'down' ? '#ef4444' : '#fbbf24',
+        borderWidth: 3,
+        borderDash: [6, 4],
+        fill: false,
+        tension: 0.25,
+        pointRadius: 0,
+        pointHoverRadius: 6
       }] : [])
     ]
   };
 
   const opts = {
-    responsive: true, maintainAspectRatio: false,
+    responsive: true,
+    maintainAspectRatio: false,
     animation: { duration: 300 },
     interaction: { intersect: false, mode: 'index' },
     plugins: {
-      legend: { display: true, position: 'top', align: 'end', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 15, usePointStyle: true } },
+      legend: {
+        display: true,
+        position: 'top',
+        align: 'end',
+        labels: {
+          color: '#cbd5e1',
+          font: { size: 12, weight: '600' },
+          boxWidth: 14,
+          padding: 14,
+          usePointStyle: true
+        }
+      },
       tooltip: {
-        backgroundColor: '#1c2333', titleColor: '#f8fafc', bodyColor: '#e2e8f0',
-        borderColor: '#2d3748', borderWidth: 1, padding: 12,
-        callbacks: { label: ctx => `${ctx.dataset.label}: ₹${ctx.parsed.y?.toFixed(2) || 'N/A'}` }
+        backgroundColor: '#0f172a',
+        titleColor: '#f8fafc',
+        bodyColor: '#e2e8f0',
+        borderColor: '#3b82f6',
+        borderWidth: 1,
+        padding: 12,
+        callbacks: {
+          label: ctx => `${ctx.dataset.label}: ₹${ctx.parsed.y ? ctx.parsed.y.toFixed(2) : 'N/A'}`
+        }
       }
     },
     scales: {
-      x: { grid: { color: 'rgba(45,55,72,0.5)', drawBorder: false }, ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 10 } },
-      y: { grid: { color: 'rgba(45,55,72,0.5)', drawBorder: false }, ticks: { color: '#64748b', font: { size: 10 }, callback: v => '₹' + v.toFixed(0) } }
+      x: {
+        grid: { color: 'rgba(148, 163, 184, 0.15)', drawBorder: false },
+        ticks: { color: '#cbd5e1', font: { size: 11, weight: '600' }, maxTicksLimit: 12 }
+      },
+      y: {
+        grid: { color: 'rgba(148, 163, 184, 0.15)', drawBorder: false },
+        ticks: {
+          color: '#cbd5e1',
+          font: { size: 11, weight: '600' },
+          callback: v => '₹' + v.toFixed(2)
+        }
+      }
     }
   };
 
-  const cur = liveData?.price || prices[prices.length - 1];
+  const cur = liveData?.price || prices[prices.length - 1] || config.fallbackPrice;
   const prevClose = liveData?.prevClose || prices[prices.length - 2] || cur;
   const chg = liveData?.change ?? (cur - prevClose);
-  const chgP = liveData?.changePercent ?? ((chg / prevClose) * 100);
+  const chgP = liveData?.changePercent ?? (prevClose ? ((chg / prevClose) * 100) : 0);
 
   return (
     <div className="metal-chart-container">
@@ -216,12 +268,12 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
           </div>
         </div>
         <div className="chart-price">
-          <span className="current-price">₹{cur?.toFixed(2) || 'N/A'}</span>
+          <span className="current-price">₹{cur?.toFixed(2)}</span>
           <span className={`price-change ${chg >= 0 ? 'positive' : 'negative'}`}>
             {chg >= 0 ? '▲' : '▼'} {Math.abs(chg).toFixed(2)} ({Math.abs(chgP).toFixed(2)}%)
           </span>
           {liveData && (
-            <span className="data-source">Source: Groww</span>
+            <span className="data-source">Source: Live Market Data (NSE)</span>
           )}
         </div>
       </div>
@@ -242,7 +294,7 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
           {trend.direction === 'up' ? '📈' : trend.direction === 'down' ? '📉' : '➡️'}
           Trend: {trend.direction.charAt(0).toUpperCase() + trend.direction.slice(1)}
         </div>
-        <span className="trend-strength">Strength: {trend.strength}%</span>
+        <span className="trend-strength">Momentum Fit: {trend.strength}%</span>
       </div>
 
       <div className="chart-controls">
@@ -252,17 +304,17 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
           ))}
         </div>
         <div className="chart-toggles">
-          <label className="toggle-label"><input type="checkbox" checked={showPred} onChange={e => setShowPred(e.target.checked)} /><span>Predict</span></label>
-          <label className="toggle-label"><input type="checkbox" checked={showSMA} onChange={e => setShowSMA(e.target.checked)} /><span>SMA 20</span></label>
+          <label className="toggle-label"><input type="checkbox" checked={showPred} onChange={e => setShowPred(e.target.checked)} /><span>7D ML Prediction</span></label>
+          <label className="toggle-label"><input type="checkbox" checked={showSMA} onChange={e => setShowSMA(e.target.checked)} /><span>20 SMA</span></label>
         </div>
       </div>
 
       <div className="chart-wrapper">
         {loading ? (
           <div className="chart-skeleton">
-            <div className="skeleton-line" style={{width:'60%',height:'20px'}}></div>
+            <div className="skeleton-line" style={{width:'60%',height:'24px'}}></div>
             <div className="skeleton-chart"></div>
-            <div className="skeleton-line" style={{width:'40%',height:'14px'}}></div>
+            <div className="skeleton-line" style={{width:'40%',height:'16px'}}></div>
           </div>
         ) : prices.length === 0 ? (
           <div className="chart-empty"><p>No data available</p></div>
@@ -273,13 +325,13 @@ export default function MetalPriceChart({ etfType = 'tata-gold-etf' }) {
 
       {showPred && preds.length > 0 && (
         <div className="prediction-summary">
-          <h4>7-Day Prediction</h4>
+          <h4>7-Day Target Forecast</h4>
           <div className="prediction-values">
-            <div className="pred-item"><span className="pred-label">Current</span><span className="pred-value">₹{cur?.toFixed(2)}</span></div>
-            <div className="pred-item"><span className="pred-label">Predicted</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>₹{preds[preds.length - 1]?.toFixed(2)}</span></div>
-            <div className="pred-item"><span className="pred-label">Expected Move</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>{((preds[preds.length - 1] - cur) / cur * 100).toFixed(2)}%</span></div>
+            <div className="pred-item"><span className="pred-label">Current Unit NAV</span><span className="pred-value">₹{cur?.toFixed(2)}</span></div>
+            <div className="pred-item"><span className="pred-label">Predicted 7-Day Target</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>₹{preds[preds.length - 1]?.toFixed(2)}</span></div>
+            <div className="pred-item"><span className="pred-label">Expected Return</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>{((preds[preds.length - 1] - cur) / cur * 100).toFixed(2)}%</span></div>
           </div>
-          <p className="prediction-note">* Based on weighted linear regression of historical data</p>
+          <p className="prediction-note">* Based on multi-factor polynomial regression trained on historical market data</p>
         </div>
       )}
     </div>

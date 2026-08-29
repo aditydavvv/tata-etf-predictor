@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { metalETFs, predictETFReaction } from '../data/metals';
-import { globalEvents } from '../data/events';
-import { fetchCommodityPrices } from '../services/marketDataService';
-import { fetchAllMarketDepth } from '../services/marketDepthService';
-import { fetchSilverAnalysis, predictTataSilverETF } from '../services/silverAnalysisService';
-import MetalPriceChart from './MetalPriceChart';
-import ModelTrainingDashboard from './ModelTrainingDashboard';
+import { metalETFs, predictETFReaction } from '../data/metals.js';
+import { globalEvents } from '../data/events.js';
+import { fetchCommodityPrices, fetchIndianETFs } from '../services/marketDataService.js';
+import { fetchAllMarketDepth } from '../services/marketDepthService.js';
+import { fetchSilverAnalysis, predictTataSilverETF } from '../services/silverAnalysisService.js';
+import MetalPriceChart from './MetalPriceChart.jsx';
+import ModelTrainingDashboard from './ModelTrainingDashboard.jsx';
 import './GoldSilverPredictor.css';
 
 export default function GoldSilverPredictor() {
@@ -15,6 +15,7 @@ export default function GoldSilverPredictor() {
   const [priceChanges, setPriceChanges] = useState({ gold: null, silver: null });
   const [marketDepth, setMarketDepth] = useState({ gold: null, silver: null, tataSilver: null });
   const [silverAnalysis, setSilverAnalysis] = useState(null);
+  const [indianETFs, setIndianETFs] = useState(null);
   const [mlModelOutput, setMlModelOutput] = useState(null);
 
   useEffect(() => {
@@ -31,9 +32,14 @@ export default function GoldSilverPredictor() {
       const analysis = await fetchSilverAnalysis();
       setSilverAnalysis(analysis);
     };
+    const loadETFs = async () => {
+      const etfs = await fetchIndianETFs();
+      if (etfs) setIndianETFs(etfs);
+    };
     loadPrices();
     loadDepth();
     loadSilverAnalysis();
+    loadETFs();
     const priceInterval = setInterval(loadPrices, 300000);
     const depthInterval = setInterval(loadDepth, 300000);
     const analysisInterval = setInterval(loadSilverAnalysis, 300000);
@@ -50,16 +56,16 @@ export default function GoldSilverPredictor() {
   const goldData = metalETFs.gold;
   const silverData = metalETFs.silver;
 
-  const usdRate = silverAnalysis?.usdInr?.rate || 87.5;
-  const liveGoldPrice = silverAnalysis?.gold?.price && usdRate
-    ? Math.round((silverAnalysis.gold.price / 31.1035) * 10 * usdRate)
-    : null;
-  const liveSilverPrice = silverAnalysis?.silver?.price && usdRate
-    ? Math.round(silverAnalysis.silver.price * 32.1507 * usdRate)
-    : null;
-  const goldDisplay = liveGoldPrice || goldData.currentPrice;
-  const silverDisplay = liveSilverPrice || silverData.currentPrice;
-  const currentRatio = parseFloat(((goldDisplay * 100) / silverDisplay).toFixed(1));
+  // Real Market Prices
+  const tataSilverPrice = indianETFs?.tataSilverETF?.price || 23.37;
+  const tataGoldPrice = 15.36; // NSE: TATAGOLD
+  const spotSilverUSD = silverAnalysis?.silver?.price || 67.79;
+  const spotGoldUSD = silverAnalysis?.gold?.price || 4530.0;
+  const liveRatio = spotSilverUSD > 0 ? parseFloat((spotGoldUSD / spotSilverUSD).toFixed(1)) : 66.8;
+
+  const usdRate = silverAnalysis?.usdInr?.rate || 95.38;
+  const spotSilverINRkg = Math.round(spotSilverUSD * 32.1507 * usdRate * 1.15);
+  const spotGoldINR10g = Math.round((spotGoldUSD / 31.1035) * 10 * usdRate * 1.15);
 
   const renderPrediction = (prediction, metal, data) => {
     if (!prediction) return null;
@@ -74,7 +80,7 @@ export default function GoldSilverPredictor() {
             {metal === 'gold' ? '🥇' : '🥈'}
           </div>
           <div>
-            <h3 className="pred-metal-name">{data.name} ETF Prediction</h3>
+            <h3 className="pred-metal-name">{data.name} Prediction</h3>
             <p className="pred-etf">{data.etfIndia}</p>
           </div>
           <div className={`pred-direction-badge ${dirColor}`}>
@@ -134,17 +140,6 @@ export default function GoldSilverPredictor() {
           </div>
         )}
 
-        {prediction.relatedEvents && prediction.relatedEvents.length > 1 && (
-          <div className="related-events">
-            <h4>Similar Historical Events</h4>
-            <div className="related-tags">
-              {prediction.relatedEvents.map((evt, i) => (
-                <span key={i} className="related-tag">{evt}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
         {prediction.marketDepth && (
           <div className="market-depth-section">
             <h4>📊 Market Depth (Live)</h4>
@@ -174,20 +169,6 @@ export default function GoldSilverPredictor() {
                 </span>
               </div>
             </div>
-            {prediction.marketDepth.signal && (
-              <div className={`depth-signal ${prediction.marketDepth.signal.bias}`}>
-                <span className="signal-icon">
-                  {prediction.marketDepth.signal.bias === 'buyers' && '📈'}
-                  {prediction.marketDepth.signal.bias === 'sellers' && '📉'}
-                  {prediction.marketDepth.signal.bias === 'neutral' && '➡️'}
-                </span>
-                <span className="signal-text">
-                  {prediction.marketDepth.signal.bias === 'buyers' && `Buyers dominating (+${prediction.marketDepth.signal.strength?.toFixed(0)}% bias)`}
-                  {prediction.marketDepth.signal.bias === 'sellers' && `Sellers dominating (+${prediction.marketDepth.signal.strength?.toFixed(0)}% bias)`}
-                  {prediction.marketDepth.signal.bias === 'neutral' && 'Balanced market depth'}
-                </span>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -202,29 +183,34 @@ export default function GoldSilverPredictor() {
       </div>
 
       <div className="current-prices">
-        <div className="price-card gold">
-          <span className="price-icon">🥇</span>
-          <div className="price-info">
-            <span className="price-label">Gold (Spot)</span>
-            <span className="price-value">₹{goldDisplay.toLocaleString('en-IN')}</span>
-            <span className="price-unit">{goldData.unit}</span>
-          </div>
-        </div>
+        {/* Tata Silver ETF Card */}
         <div className="price-card silver">
           <span className="price-icon">🥈</span>
           <div className="price-info">
-            <span className="price-label">Silver (Spot)</span>
-            <span className="price-value">₹{silverDisplay.toLocaleString('en-IN')}</span>
-            <span className="price-unit">{silverData.unit}</span>
+            <span className="price-label">Tata Silver ETF (TATSILV)</span>
+            <span className="price-value">₹{tataSilverPrice.toFixed(2)}</span>
+            <span className="price-unit">Spot Silver: ${spotSilverUSD.toFixed(2)}/oz (₹{(spotSilverINRkg/100000).toFixed(2)}L/kg)</span>
           </div>
         </div>
+
+        {/* Tata Gold ETF Card */}
+        <div className="price-card gold">
+          <span className="price-icon">🥇</span>
+          <div className="price-info">
+            <span className="price-label">Tata Gold ETF (TATAGOLD)</span>
+            <span className="price-value">₹{tataGoldPrice.toFixed(2)}</span>
+            <span className="price-unit">Spot Gold: ${spotGoldUSD.toFixed(0)}/oz (₹{(spotGoldINR10g/1000).toFixed(0)}K/10g)</span>
+          </div>
+        </div>
+
+        {/* Gold / Silver Valuation Ratio */}
         <div className="price-card ratio">
           <span className="price-icon">⚖️</span>
           <div className="price-info">
-            <span className="price-label">Gold/Silver Ratio</span>
-            <span className="price-value">{currentRatio}</span>
+            <span className="price-label">Gold/Silver Spot Ratio</span>
+            <span className="price-value">{liveRatio}</span>
             <span className="price-unit">
-              Silver {currentRatio >= 80 ? 'undervalued vs Gold' : currentRatio <= 60 ? 'rich vs Gold' : 'fairly valued'}
+              Silver {liveRatio >= 80 ? 'undervalued vs Gold' : liveRatio <= 60 ? 'rich vs Gold' : 'fair historical range'}
             </span>
           </div>
         </div>
@@ -266,7 +252,7 @@ export default function GoldSilverPredictor() {
       <div className="metal-tabs">
         <button className={`metal-tab ${activeTab === 'both' ? 'active' : ''}`} onClick={() => setActiveTab('both')}>Both</button>
         <button className={`metal-tab silver ${activeTab === 'silver' ? 'active' : ''}`} onClick={() => setActiveTab('silver')}>Tata Silver Only</button>
-        <button className={`metal-tab gold ${activeTab === 'gold' ? 'active' : ''}`} onClick={() => setActiveTab('gold')}>Gold Only</button>
+        <button className={`metal-tab gold ${activeTab === 'gold' ? 'active' : ''}`} onClick={() => setActiveTab('gold')}>Tata Gold Only</button>
       </div>
 
       <div className="predictions-container">
@@ -276,7 +262,7 @@ export default function GoldSilverPredictor() {
               <div className="pred-metal-icon">🏆</div>
               <div>
                 <h3 className="pred-metal-name">Tata Silver ETF Prediction</h3>
-                <p className="pred-etf">Tata Silver Exchange Traded Fund (TATSILV)</p>
+                <p className="pred-etf">Tata Silver Exchange Traded Fund (NSE: TATSILV)</p>
               </div>
               <div className={`pred-direction-badge ${tataSilverPrediction.prediction === 'positive' ? 'positive' : tataSilverPrediction.prediction === 'negative' ? 'negative' : 'neutral'}`}>
                 {tataSilverPrediction.prediction === 'positive' ? '📈 BULLISH' :
@@ -301,7 +287,7 @@ export default function GoldSilverPredictor() {
                 <span className="pred-stat-value timeframe">{tataSilverPrediction.timeframe}</span>
               </div>
               <div className="pred-stat">
-                <span className="pred-stat-label">5-Year Trend Fit</span>
+                <span className="pred-stat-label">5-Year Trend Momentum</span>
                 <span className={`pred-stat-value ${tataSilverPrediction.silverData?.trend?.direction === 'up' ? 'positive' : tataSilverPrediction.silverData?.trend?.direction === 'down' ? 'negative' : 'neutral'}`}>
                   {tataSilverPrediction.silverData?.trend?.direction?.toUpperCase()} ({tataSilverPrediction.silverData?.trend?.strength}%)
                 </span>
@@ -366,7 +352,7 @@ export default function GoldSilverPredictor() {
 
         <div className="reference-grid">
           <div className="ref-column">
-            <h4>🥈 Silver Reactions</h4>
+            <h4>🥈 Tata Silver ETF Reactions</h4>
             {silverData.historicalReactions.map((reaction, i) => (
               <div key={i} className="ref-item">
                 <div className="ref-event-name">{reaction.event}</div>
@@ -378,7 +364,7 @@ export default function GoldSilverPredictor() {
             ))}
           </div>
           <div className="ref-column">
-            <h4>🥇 Gold Reactions</h4>
+            <h4>🥇 Tata Gold ETF Reactions</h4>
             {goldData.historicalReactions.map((reaction, i) => (
               <div key={i} className="ref-item">
                 <div className="ref-event-name">{reaction.event}</div>

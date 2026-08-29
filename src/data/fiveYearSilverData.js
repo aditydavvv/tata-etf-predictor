@@ -139,11 +139,10 @@ function generateFiveYearData() {
       dxy = Math.max(89.0, Math.min(114.0, (year === 2022 ? 106.0 : year === 2024 ? 103.0 : 101.0) + normalRandom() * 0.2));
       solarDemand = Math.max(100, 100 + ((currentDate - startDate) / (endDate - startDate)) * 90 + normalRandom() * 1.5);
 
-      // Tata Silver ETF price formula:
-      // (spotSilver / 31.1035) * usdInr * (1 + importDutyGst ~ 15%) / 10 (units normalized)
-      // NAV ranges: ₹60 (2021) -> ₹54-₹68 (2022) -> ₹70-₹78 (2023) -> ₹75-₹102 (2024) -> ₹98-₹114 (2025) -> ₹110-₹122 (2026)
-      const rawPrice = ((spotSilver / 31.1035) * usdInr * 1.15) * 1.18; // approx ₹ per gram / ETF unit
-      const tataPrice = parseFloat(rawPrice.toFixed(2));
+      // Tata Silver ETF unit price formula (NSE: TATSILV):
+      // 1 unit NAV scale: ₹13.50 in 2021 -> ₹11.50 in 2022 -> ₹18.00 in 2024 -> ₹23.37 in 2026
+      const rawPrice = ((spotSilver / 31.1035) * usdInr * 1.15) * 0.185;
+      const tataPrice = parseFloat(Math.max(10.0, rawPrice).toFixed(2));
       
       const daySpread = tataPrice * 0.012;
       const openPrice = parseFloat((tataPrice + (pseudoRandom() - 0.5) * daySpread * 0.4).toFixed(2));

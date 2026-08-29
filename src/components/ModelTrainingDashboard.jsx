@@ -121,52 +121,58 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
       labels: allLabels,
       datasets: [
         {
-          label: 'Tata Silver ETF (Historical)',
+          label: 'Tata Silver ETF (Historical Price)',
           data: actualDataPadded,
-          borderColor: '#06b6d4',
-          backgroundColor: 'rgba(6, 182, 212, 0.08)',
-          borderWidth: 2,
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34, 211, 238, 0.16)',
+          borderWidth: 3,
           fill: true,
           pointRadius: 0,
-          pointHoverRadius: 4,
-          tension: 0.2
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#22d3ee',
+          pointHoverBorderColor: '#ffffff',
+          pointHoverBorderWidth: 2,
+          tension: 0.22
         },
         {
-          label: '5-Year ML Model Fit',
+          label: '5-Year ML Model Fit Curve',
           data: fittedDataPadded,
-          borderColor: '#a855f7',
-          borderWidth: 1.5,
-          borderDash: [4, 4],
+          borderColor: '#c084fc',
+          borderWidth: 2,
+          borderDash: [5, 4],
           fill: false,
           pointRadius: 0,
-          tension: 0.2
+          tension: 0.22
         },
         {
-          label: `${selectedHorizon} ML Forecast Target (₹${predObj.targetPrice})`,
+          label: `${selectedHorizon} ML Forecast Target (₹${predObj.targetPrice.toFixed(2)})`,
           data: forecastDataPadded,
           borderColor: predObj.signal === 'BULLISH' || predObj.signal === 'STRONG BULLISH' ? '#10b981' : '#ef4444',
-          borderWidth: 2.5,
+          borderWidth: 3.5,
           fill: false,
           pointRadius: 0,
-          pointHoverRadius: 5,
-          tension: 0.2
+          pointHoverRadius: 7,
+          pointHoverBackgroundColor: predObj.signal === 'BULLISH' ? '#10b981' : '#ef4444',
+          pointHoverBorderColor: '#ffffff',
+          pointHoverBorderWidth: 2,
+          tension: 0.22
         },
         {
           label: '95% Confidence Upper Band',
           data: upperDataPadded,
-          borderColor: 'rgba(16, 185, 129, 0.4)',
-          borderWidth: 1,
-          borderDash: [3, 3],
+          borderColor: 'rgba(52, 211, 153, 0.7)',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
           fill: '+1',
-          backgroundColor: 'rgba(16, 185, 129, 0.06)',
+          backgroundColor: 'rgba(16, 185, 129, 0.12)',
           pointRadius: 0
         },
         {
           label: '95% Confidence Lower Band',
           data: lowerDataPadded,
-          borderColor: 'rgba(239, 68, 68, 0.4)',
-          borderWidth: 1,
-          borderDash: [3, 3],
+          borderColor: 'rgba(248, 113, 113, 0.7)',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
           fill: false,
           pointRadius: 0
         }
@@ -185,10 +191,10 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
         position: 'top',
         align: 'end',
         labels: {
-          color: '#94a3b8',
-          font: { size: 11, family: 'Inter, sans-serif' },
-          boxWidth: 12,
-          padding: 12,
+          color: '#f1f5f9',
+          font: { size: 12, weight: '600' },
+          boxWidth: 14,
+          padding: 14,
           usePointStyle: true
         }
       },
@@ -196,9 +202,9 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
         backgroundColor: '#0f172a',
         titleColor: '#f8fafc',
         bodyColor: '#cbd5e1',
-        borderColor: '#334155',
-        borderWidth: 1,
-        padding: 10,
+        borderColor: '#3b82f6',
+        borderWidth: 1.5,
+        padding: 12,
         callbacks: {
           label: ctx => ctx.parsed.y ? `${ctx.dataset.label}: ₹${ctx.parsed.y.toFixed(2)}` : null
         }
@@ -206,15 +212,15 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
     },
     scales: {
       x: {
-        grid: { color: 'rgba(51, 65, 85, 0.3)', drawBorder: false },
-        ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 12 }
+        grid: { color: 'rgba(148, 163, 184, 0.15)', drawBorder: false },
+        ticks: { color: '#cbd5e1', font: { size: 11, weight: '600' }, maxTicksLimit: 12 }
       },
       y: {
-        grid: { color: 'rgba(51, 65, 85, 0.3)', drawBorder: false },
+        grid: { color: 'rgba(148, 163, 184, 0.15)', drawBorder: false },
         ticks: {
-          color: '#64748b',
-          font: { size: 10 },
-          callback: v => '₹' + v.toFixed(0)
+          color: '#cbd5e1',
+          font: { size: 11, weight: '600' },
+          callback: v => '₹' + v.toFixed(2)
         }
       }
     }

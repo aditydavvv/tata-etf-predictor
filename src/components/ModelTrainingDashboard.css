@@ -460,8 +460,12 @@
 }
 
 .chart-canvas-box {
-  height: 340px;
+  height: 420px;
   position: relative;
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* Dual Panel Grid */
@@ -691,5 +695,8 @@
   }
   .analysis-dual-grid {
     grid-template-columns: 1fr;
+  }
+  .chart-canvas-box {
+    height: 320px;
   }
 }

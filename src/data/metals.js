@@ -1,11 +1,14 @@
 export const metalETFs = {
   gold: {
-    name: "Gold",
-    symbol: "GOLD",
-    etfIndia: "Gold BeES / SGB / Gold ETFs",
-    currentPrice: 143200,
-    currency: "INR/10g",
-    unit: "per 10 grams",
+    name: "Tata Gold ETF",
+    symbol: "TATAGOLD",
+    etfIndia: "Tata Gold Exchange Traded Fund (NSE: TATAGOLD)",
+    currentPrice: 15.36,
+    etfPrice: 15.36,
+    bullionPrice: 155000,
+    currency: "INR",
+    unit: "per ETF unit",
+    bullionUnit: "₹1,55,000 per 10g spot",
     historicalReactions: [
       {
         event: "Fed Rate Cut (Dovish Signal)",
@@ -122,12 +125,15 @@ export const metalETFs = {
     ]
   },
   silver: {
-    name: "Silver",
-    symbol: "SILVER",
-    etfIndia: "Silver ETFs / iShares Silver Trust",
-    currentPrice: 213000,
-    currency: "INR/kg",
-    unit: "per kg",
+    name: "Tata Silver ETF",
+    symbol: "TATSILV",
+    etfIndia: "Tata Silver Exchange Traded Fund (NSE: TATSILV)",
+    currentPrice: 23.37,
+    etfPrice: 23.37,
+    bullionPrice: 230000,
+    currency: "INR",
+    unit: "per ETF unit",
+    bullionUnit: "₹2,30,000 per 1kg spot",
     historicalReactions: [
       {
         event: "Fed Rate Cut (Dovish Signal)",
