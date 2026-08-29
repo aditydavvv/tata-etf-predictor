@@ -341,7 +341,6 @@ export function trainFullTataSilverModel() {
 
     const actualPriceNext = baseP * (1 + actualRet);
     const predPriceNext = baseP * (1 + predRet);
-    fittedPricesTest.push(predPriceNext);
 
     if (Math.sign(actualRet) === Math.sign(predRet) || Math.abs(actualRet) < 0.003) {
       correctDirectionCount++;

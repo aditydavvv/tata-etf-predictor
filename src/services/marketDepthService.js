@@ -1,6 +1,6 @@
 import { fetchResilient } from '../utils/fetchResilient';
 
-const GROWW_BASE = import.meta.env.DEV ? '/groww' : 'https://www.groww.in';
+const GROWW_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.DEV) ? '/groww' : 'https://www.groww.in';
 
 const ETF_PAGES = {
   'gold-etf': { path: '/etfs/nippon-india-gold-bes', name: 'Gold ETF', symbol: 'GOLDBEES' },

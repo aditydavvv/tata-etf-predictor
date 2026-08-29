@@ -1,4 +1,4 @@
-const YAHOO_FINANCE_BASE = import.meta.env.DEV
+const YAHOO_FINANCE_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.DEV)
   ? '/yahoo/v8/finance/chart'
   : 'https://query2.finance.yahoo.com/v8/finance/chart';
 

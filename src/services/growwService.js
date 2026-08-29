@@ -44,7 +44,7 @@ export async function fetchGrowwETFData(etfType) {
   if (!config) return null;
 
   try {
-    const url = import.meta.env.DEV
+    const url = (typeof import.meta !== 'undefined' && import.meta.env?.DEV)
       ? `/groww${config.path}`
       : `${GROWW_URL}${config.path}`;
     const response = await fetchResilient(url);

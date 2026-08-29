@@ -1,4 +1,4 @@
-const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY || '';
+const NEWS_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NEWS_API_KEY) || '';
 const NEWS_API_BASE = 'https://newsapi.org/v2';
 
 const MARKET_KEYWORDS = {
