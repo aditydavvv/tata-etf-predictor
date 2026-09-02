@@ -185,6 +185,13 @@ export default function GoldSilverPredictor() {
       {/* 5-Year AI/ML ETF Training & Forecasting Engine */}
       <ModelTrainingDashboard onPredictionUpdate={setMlModelOutput} />
 
+      <div className="chart-tabs">
+        <button className={`chart-tab ${activeChart === 'tata-silver-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-silver-etf')}>Tata Silver ETF</button>
+        <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
+      </div>
+
+      <MetalPriceChart etfType={activeChart} />
+
       <div className="current-prices">
         {/* Tata Silver ETF Card */}
         <div className="price-card silver">
@@ -218,13 +225,6 @@ export default function GoldSilverPredictor() {
           </div>
         </div>
       </div>
-
-      <div className="chart-tabs">
-        <button className={`chart-tab ${activeChart === 'tata-silver-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-silver-etf')}>Tata Silver ETF</button>
-        <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
-      </div>
-
-      <MetalPriceChart etfType={activeChart} />
 
       <div className="event-selector">
         <label>Select a Global Event to Predict Impact:</label>
