@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { trainFullTataSilverModel } from '../services/etfModelTrainer';
+import { fetchIndianETFs } from '../services/marketDataService.js';
 import './ModelTrainingDashboard.css';
 
 export default function ModelTrainingDashboard({ onPredictionUpdate }) {
@@ -7,8 +8,32 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
   const [modelType, setModelType] = useState('ensemble');
   const [selectedHorizon, setSelectedHorizon] = useState('7D');
 
-  // Train model on 5-year data
+  // Train model on 5-year data (re-aligned to the live Tata Silver ETF price)
   const [modelResult, setModelResult] = useState(() => trainFullTataSilverModel());
+
+  // Fetch live Tata Silver ETF price and re-anchor the model's current price
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const rebase = async () => {
+      try {
+        const etfs = await fetchIndianETFs();
+        if (cancelled) return;
+        const live = etfs?.tataSilverETF?.price;
+        if (live) {
+          setModelResult(prev => {
+            if (prev && Math.abs(prev.currentPrice - live) < 0.005) return prev;
+            return trainFullTataSilverModel(live);
+          });
+        }
+      } catch {
+        /* ignore, keep synthetic based model */
+      }
+    };
+    rebase();
+    timer = setInterval(rebase, 300000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
 
   // Notify parent if needed
   useEffect(() => {
@@ -17,10 +42,15 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
     }
   }, [modelResult, onPredictionUpdate]);
 
-  const handleRetrain = () => {
+  const handleRetrain = async () => {
     setIsTraining(true);
+    let live = null;
+    try {
+      const etfs = await fetchIndianETFs();
+      live = etfs?.tataSilverETF?.price || null;
+    } catch { /* keep current */ }
     setTimeout(() => {
-      const updated = trainFullTataSilverModel();
+      const updated = trainFullTataSilverModel(live);
       setModelResult(updated);
       setIsTraining(false);
     }, 600);

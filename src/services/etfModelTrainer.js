@@ -305,7 +305,7 @@ export function runMonteCarloSimulation(currentPrice, dailyVolatility = 0.015, d
 /**
  * Main 5-Year ML Pipeline for Tata Silver ETF
  */
-export function trainFullTataSilverModel() {
+export function trainFullTataSilverModel(livePrice = null) {
   const extracted = extractFeatures(FIVE_YEAR_SILVER_DATA);
   const { featureMatrix, targets, closes, dates, fullData } = extracted;
 
@@ -367,7 +367,7 @@ export function trainFullTataSilverModel() {
   });
 
   // Current Latest Market State
-  const currentPrice = closes[closes.length - 1];
+  const currentPrice = livePrice || closes[closes.length - 1] || 21.88;
   const latestFeatures = featureMatrix[featureMatrix.length - 1];
 
   // Forward Return Forecasts
