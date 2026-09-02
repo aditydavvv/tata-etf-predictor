@@ -150,10 +150,11 @@ export async function fetchMetalETFs() {
 }
 
 export async function fetchIndianETFs() {
-  const [goldETF, silverETF, tataSilver] = await Promise.all([
+  const [goldETF, silverETF, tataSilver, tataGold] = await Promise.all([
     fetchYahooData(SYMBOLS.goldETFIndia),
     fetchYahooData(SYMBOLS.silverETFIndia),
-    fetchYahooData(SYMBOLS.tataSilverETF)
+    fetchYahooData(SYMBOLS.tataSilverETF),
+    fetchYahooData(SYMBOLS.tataGoldETF)
   ]);
   const toETF = (result, symbol, name) => {
     if (!result) return null;
@@ -170,7 +171,8 @@ export async function fetchIndianETFs() {
   return {
     goldETFIndia: toETF(goldETF, 'GOLDBEES.NS', 'Nippon India Gold BeES'),
     silverETFIndia: toETF(silverETF, 'SILVERBEES.NS', 'Nippon India Silver BeES'),
-    tataSilverETF: toETF(tataSilver, 'TATSILV.NS', 'Tata Silver ETF')
+    tataSilverETF: toETF(tataSilver, 'TATSILV.NS', 'Tata Silver ETF'),
+    tataGoldETF: toETF(tataGold, 'TATAGOLD.NS', 'Tata Gold ETF')
   };
 }
 
