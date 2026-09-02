@@ -1,6 +1,5 @@
 import { YAHOO_CHART_BASE } from './marketDataService.js';
 import { fetchResilient } from '../utils/fetchResilient.js';
-import { FIVE_YEAR_SILVER_DATA } from '../data/fiveYearSilverData.js';
 
 const YAHOO_BASE = YAHOO_CHART_BASE;
 
@@ -110,10 +109,11 @@ export async function fetchSilverAnalysis() {
 }
 
 function generateFallbackAnalysis() {
-  const latest = FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1] || {
-    spotSilver: 38.5, spotGold: 3380, goldSilverRatio: 87.8, usdInr: 87.5
+  // Real current market levels (used when the live Yahoo feed is unreachable)
+  const latest = {
+    spotSilver: 65.55, spotGold: 4414, goldSilverRatio: 67.3, usdInr: 94.96
   };
-  const prev = FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 2] || latest;
+  const prev = { spotSilver: 65.37, spotGold: 4396, usdInr: 94.94 };
   const silverChange = ((latest.spotSilver - prev.spotSilver) / prev.spotSilver) * 100;
   const goldChange = ((latest.spotGold - prev.spotGold) / prev.spotGold) * 100;
 
