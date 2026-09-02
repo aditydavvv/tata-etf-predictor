@@ -182,6 +182,9 @@ export default function GoldSilverPredictor() {
         <span className="subtitle">Real-time analysis based on 5-year historical data, global precious metals, event shocks & order book depth</span>
       </div>
 
+      {/* 5-Year AI/ML ETF Training & Forecasting Engine */}
+      <ModelTrainingDashboard onPredictionUpdate={setMlModelOutput} />
+
       <div className="current-prices">
         {/* Tata Silver ETF Card */}
         <div className="price-card silver">
@@ -222,9 +225,6 @@ export default function GoldSilverPredictor() {
       </div>
 
       <MetalPriceChart etfType={activeChart} />
-
-      {/* 5-Year AI/ML ETF Training & Forecasting Engine */}
-      <ModelTrainingDashboard onPredictionUpdate={setMlModelOutput} />
 
       <div className="event-selector">
         <label>Select a Global Event to Predict Impact:</label>
