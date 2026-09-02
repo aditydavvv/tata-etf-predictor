@@ -11,9 +11,16 @@
  * 2026: Silver Spot $34 - $39/oz | Tata Silver ETF: ₹110 - ₹122 (Current market level)
  */
 
+function getEndDate() {
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const minEnd = new Date('2026-08-28');
+  return today > minEnd ? today : minEnd;
+}
+
 function generateFiveYearData() {
   const startDate = new Date('2021-01-04');
-  const endDate = new Date('2026-08-28');
+  const endDate = getEndDate();
   const dataset = [];
 
   let currentDate = new Date(startDate);
@@ -65,8 +72,9 @@ function generateFiveYearData() {
       // 2025: 31.5 to 36.0
       return 31.5 + (month / 11) * 4.5;
     } else {
-      // 2026: 36.0 to 38.8
-      return 36.0 + (month / 7) * 2.8;
+      // 2026: 36.0 -> 38.8 by end of data
+      const maxMonth = endDate.getFullYear() === 2026 ? endDate.getMonth() : 7;
+      return 36.0 + (month / maxMonth) * 2.8;
     }
   };
 
@@ -79,7 +87,7 @@ function generateFiveYearData() {
     if (year === 2023) return 82.5 + (month / 11) * 0.8;
     if (year === 2024) return 83.2 + (month / 11) * 1.3;
     if (year === 2025) return 84.5 + (month / 11) * 2.2;
-    return 86.7 + (month / 7) * 1.1;
+    return 86.7 + (month / (endDate.getFullYear() === 2026 ? endDate.getMonth() : 7)) * 1.1;
   };
 
   const getTargetGoldSpot = (date) => {
@@ -91,7 +99,7 @@ function generateFiveYearData() {
     if (year === 2023) return 1850 + (month / 11) * 200;
     if (year === 2024) return 2050 + (month / 11) * 650;
     if (year === 2025) return 2700 + (month / 11) * 450;
-    return 3150 + (month / 7) * 230;
+    return 3150 + (month / (endDate.getFullYear() === 2026 ? endDate.getMonth() : 7)) * 230;
   };
 
   const eventTimeline = [
