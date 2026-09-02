@@ -1,6 +1,6 @@
 .gold-silver-section {
   padding: 0 24px;
-  animation: fadeInUp 0.6s ease;
+  animation: fadeInUp 0.5s ease;
 }
 
 .gold-silver-section .section-header h2 {
@@ -31,54 +31,51 @@
   padding: 20px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--bg-card);
   transition: var(--transition-smooth);
-  transform-style: preserve-3d;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .price-card::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), transparent);
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
   pointer-events: none;
 }
 
 .price-card:hover {
-  transform: translateY(-6px) rotateX(3deg);
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.3),
-    0 0 20px rgba(59, 130, 246, 0.1);
+  transform: translateY(-3px) perspective(800px) rotateX(1deg);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-light);
 }
 
 .price-card.gold {
-  border-color: rgba(245, 158, 11, 0.4);
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), var(--bg-glass));
+  border-color: rgba(234, 179, 8, 0.2);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.06), var(--bg-card));
 }
 
 .price-card.gold:hover {
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.3),
-    0 0 30px rgba(245, 158, 11, 0.15);
+  box-shadow: var(--shadow-lg), 0 0 20px rgba(234, 179, 8, 0.08);
 }
 
 .price-card.silver {
-  border-color: rgba(148, 163, 184, 0.4);
-  background: linear-gradient(135deg, rgba(148, 163, 184, 0.08), var(--bg-glass));
+  border-color: rgba(148, 163, 184, 0.2);
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.06), var(--bg-card));
 }
 
 .price-card.ratio {
-  border-color: rgba(139, 92, 246, 0.4);
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), var(--bg-glass));
+  border-color: rgba(139, 92, 246, 0.2);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.06), var(--bg-card));
 }
 
 .price-icon {
   font-size: 2.2rem;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
 .price-info {
@@ -140,8 +137,8 @@
 }
 
 .chart-tab.active.gold {
-  border-color: #ffc107;
-  background: rgba(255, 193, 7, 0.1);
+  border-color: #eab308;
+  background: rgba(234, 179, 8, 0.1);
 }
 
 .chart-tab.active.silver {
@@ -259,8 +256,8 @@
 }
 
 .metal-tab.gold.active {
-  background: #f59e0b;
-  border-color: #f59e0b;
+  background: #eab308;
+  border-color: #eab308;
 }
 
 .metal-tab.silver.active {
@@ -279,55 +276,50 @@
   border-radius: var(--radius-xl);
   padding: 28px;
   border: 1px solid var(--border);
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--bg-card);
   transition: var(--transition-smooth);
-  transform-style: preserve-3d;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 
 .prediction-card::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02), transparent);
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
   pointer-events: none;
 }
 
 .prediction-card:hover {
-  transform: translateY(-8px) rotateX(2deg);
-  box-shadow: 
-    0 25px 50px rgba(0, 0, 0, 0.4),
-    0 0 30px rgba(59, 130, 246, 0.1);
+  transform: translateY(-4px) perspective(1000px) rotateX(1deg);
+  box-shadow: var(--shadow-xl);
 }
 
 .prediction-card.positive {
-  border-color: rgba(16, 185, 129, 0.4);
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), var(--bg-glass));
+  border-color: rgba(34, 197, 94, 0.2);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.05), var(--bg-card));
 }
 
 .prediction-card.positive:hover {
-  box-shadow: 
-    0 25px 50px rgba(0, 0, 0, 0.4),
-    0 0 30px rgba(16, 185, 129, 0.15);
+  box-shadow: var(--shadow-xl), 0 0 25px rgba(34, 197, 94, 0.08);
 }
 
 .prediction-card.negative {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), var(--bg-glass));
+  border-color: rgba(239, 68, 68, 0.2);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), var(--bg-card));
 }
 
 .prediction-card.negative:hover {
-  box-shadow: 
-    0 25px 50px rgba(0, 0, 0, 0.4),
-    0 0 30px rgba(239, 68, 68, 0.15);
+  box-shadow: var(--shadow-xl), 0 0 25px rgba(239, 68, 68, 0.08);
 }
 
 .prediction-card.neutral {
-  border-color: rgba(245, 158, 11, 0.4);
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), var(--bg-glass));
+  border-color: rgba(234, 179, 8, 0.2);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.05), var(--bg-card));
 }
 
 .pred-header {
@@ -361,34 +353,29 @@
   font-size: 0.85rem;
   font-weight: 800;
   letter-spacing: 0.5px;
-  backdrop-filter: blur(10px);
   transition: var(--transition-smooth);
-  transform-style: preserve-3d;
 }
 
 .pred-direction-badge:hover {
-  transform: scale(1.05) rotateY(5deg);
+  transform: scale(1.03);
 }
 
 .pred-direction-badge.positive {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(34, 197, 94, 0.15);
   color: var(--accent-green);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.25);
 }
 
 .pred-direction-badge.negative {
-  background: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.15);
   color: var(--accent-red);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
 .pred-direction-badge.neutral {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(234, 179, 8, 0.15);
   color: var(--accent-yellow);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(234, 179, 8, 0.25);
 }
 
 .pred-stats {
@@ -401,7 +388,7 @@
 .pred-stat {
   padding: 12px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
 }
 
@@ -430,7 +417,7 @@
 .confidence-bar-wrapper {
   position: relative;
   height: 22px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
   overflow: hidden;
   margin-top: 4px;
@@ -458,7 +445,7 @@
   margin-bottom: 16px;
   padding: 14px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
 }
 
@@ -496,7 +483,7 @@
   gap: 12px;
   padding: 8px 12px;
   border-radius: 6px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
   font-size: 0.82rem;
 }
@@ -546,6 +533,7 @@
   border-radius: 14px;
   background: var(--bg-card);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .historical-reference h3 {
@@ -580,8 +568,8 @@
   padding: 12px;
   margin-bottom: 8px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .ref-event-name {
@@ -728,8 +716,8 @@
 }
 
 .depth-signal.buyers {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
   color: var(--accent-green);
 }
 
@@ -740,8 +728,8 @@
 }
 
 .depth-signal.neutral {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.2);
   color: var(--accent-yellow);
 }
 

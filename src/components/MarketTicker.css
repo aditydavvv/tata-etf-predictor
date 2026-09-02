@@ -4,9 +4,10 @@
   padding: 10px 0;
   overflow: hidden;
   position: sticky;
-  top: 0;
-  z-index: 100;
+  top: 64px;
+  z-index: 90;
 }
+
 .ticker-content {
   display: flex;
   gap: 20px;
@@ -14,10 +15,12 @@
   animation: ticker-scroll 40s linear infinite;
   white-space: nowrap;
 }
+
 @keyframes ticker-scroll {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+
 .ticker-item {
   display: flex;
   align-items: center;
@@ -28,6 +31,7 @@
   border-radius: 20px;
   font-size: 0.8rem;
 }
+
 .ticker-icon { font-size: 0.9rem; }
 .ticker-label { color: var(--text-muted); font-weight: 500; }
 .ticker-price { color: var(--text-primary); font-weight: 700; }

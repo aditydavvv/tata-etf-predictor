@@ -38,8 +38,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
 }
 
 .indices-grid {
@@ -56,6 +56,7 @@
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .index-card::before {
@@ -76,9 +77,9 @@
 }
 
 .index-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--text-muted);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  transform: translateY(-3px) perspective(600px) rotateX(1deg);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-lg);
 }
 
 .index-header {
@@ -98,7 +99,7 @@
 .index-sector {
   font-size: 0.65rem;
   color: var(--text-muted);
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   padding: 2px 8px;
   border-radius: 10px;
   text-transform: uppercase;

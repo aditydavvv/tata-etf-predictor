@@ -12,6 +12,7 @@
   border-radius: 10px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  box-shadow: var(--shadow-sm);
 }
 
 .sentiment-label {
@@ -90,13 +91,13 @@
 
 .filter-tab .count {
   font-size: 0.7rem;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
   padding: 1px 6px;
   border-radius: 10px;
 }
 
 .filter-tab.active .count {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .sort-controls {

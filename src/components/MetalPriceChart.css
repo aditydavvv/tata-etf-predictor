@@ -1,11 +1,11 @@
 .metal-chart-container {
-  background: linear-gradient(180deg, #131b2e 0%, #0d1322 100%);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 24px;
   margin-top: 24px;
   margin-bottom: 28px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-md);
 }
 
 .chart-header {
@@ -30,13 +30,13 @@
 .chart-title h3 {
   font-size: 1.3rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .chart-subtitle {
   font-size: 0.82rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -48,7 +48,7 @@
   display: block;
   font-size: 1.9rem;
   font-weight: 800;
-  color: #f8fafc;
+  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
 }
@@ -61,17 +61,17 @@
 }
 
 .price-change.positive {
-  color: #10b981;
+  color: var(--accent-green);
 }
 
 .price-change.negative {
-  color: #ef4444;
+  color: var(--accent-red);
 }
 
 .data-source {
   display: block;
   font-size: 0.72rem;
-  color: #38bdf8;
+  color: var(--accent-cyan);
   margin-top: 4px;
 }
 
@@ -93,27 +93,27 @@
 }
 
 .trend-badge.up {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--accent-green);
+  border: 1px solid rgba(34, 197, 94, 0.25);
 }
 
 .trend-badge.down {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--accent-red);
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
 .trend-badge.neutral {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(234, 179, 8, 0.12);
+  color: var(--accent-yellow);
+  border: 1px solid rgba(234, 179, 8, 0.25);
 }
 
 .trend-strength {
   font-size: 0.82rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 .groww-details {
@@ -126,11 +126,11 @@
 .detail-chip {
   padding: 5px 12px;
   border-radius: 8px;
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
   font-size: 0.78rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -151,10 +151,10 @@
 
 .tf-btn {
   padding: 6px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(30, 41, 59, 0.6);
-  color: #cbd5e1;
+  background: transparent;
+  color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
@@ -163,16 +163,15 @@
 }
 
 .tf-btn:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: rgba(96, 165, 250, 0.5);
-  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-light);
+  color: var(--text-primary);
 }
 
 .tf-btn.active {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #3b82f6;
-  box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
 }
 
 .chart-toggles {
@@ -186,26 +185,25 @@
   gap: 6px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .toggle-label input {
   width: 16px;
   height: 16px;
-  accent-color: #2563eb;
+  accent-color: var(--accent-blue);
   cursor: pointer;
 }
 
-/* High-Visibility Large Chart Canvas */
 .chart-wrapper {
   height: 420px;
   position: relative;
   margin-bottom: 18px;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 12px;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
 }
 
 .chart-loading, .chart-empty {
@@ -215,7 +213,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .chart-skeleton {
@@ -229,7 +227,7 @@
 
 .skeleton-line {
   border-radius: 4px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.04) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -237,7 +235,7 @@
 .skeleton-chart {
   flex: 1;
   border-radius: 4px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.06) 50%, rgba(255, 255, 255, 0.02) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -249,14 +247,14 @@
 
 .prediction-summary {
   padding: 16px 20px;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
   border-radius: 12px;
 }
 
 .prediction-summary h4 {
   font-size: 0.82rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0 0 12px 0;
@@ -276,27 +274,27 @@
 .pred-label {
   display: block;
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-bottom: 4px;
 }
 
 .pred-value {
   font-size: 1.25rem;
   font-weight: 800;
-  color: #f8fafc;
+  color: var(--text-primary);
 }
 
 .pred-value.positive {
-  color: #10b981;
+  color: var(--accent-green);
 }
 
 .pred-value.negative {
-  color: #ef4444;
+  color: var(--accent-red);
 }
 
 .prediction-note {
   font-size: 0.72rem;
-  color: #64748b;
+  color: var(--text-dim);
   text-align: center;
   margin: 0;
 }
