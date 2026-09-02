@@ -196,12 +196,16 @@ function generateFallbackData(symbol, range) {
   if (symbol === 'TATSILV.NS' || symbol === 'SILVERBEES.NS' || symbol === 'SI=F') {
     const days = range === '5d' ? 5 : range === '1mo' ? 22 : range === '3mo' ? 66 : range === '6mo' ? 130 : range === '1y' ? 252 : range === '3y' ? 756 : FIVE_YEAR_SILVER_DATA.length;
     const slice = FIVE_YEAR_SILVER_DATA.slice(Math.max(0, FIVE_YEAR_SILVER_DATA.length - days));
+    // Rebase the synthetic series to the real current market price so the
+    // latest point reflects the live Tata Silver ETF price.
+    const lastClose = slice[slice.length - 1]?.close;
+    const scale = symbol === 'TATSILV.NS' && lastClose ? 21.88 / lastClose : 1;
     return slice.map(d => ({
       date: new Date(d.date),
-      open: symbol === 'SI=F' ? d.spotSilver : d.open,
-      high: symbol === 'SI=F' ? d.spotSilver * 1.01 : d.high,
-      low: symbol === 'SI=F' ? d.spotSilver * 0.99 : d.low,
-      close: symbol === 'SI=F' ? d.spotSilver : d.close,
+      open: symbol === 'SI=F' ? d.spotSilver : parseFloat((d.open * scale).toFixed(2)),
+      high: symbol === 'SI=F' ? d.spotSilver * 1.01 : parseFloat((d.high * scale).toFixed(2)),
+      low: symbol === 'SI=F' ? d.spotSilver * 0.99 : parseFloat((d.low * scale).toFixed(2)),
+      close: symbol === 'SI=F' ? d.spotSilver : parseFloat((d.close * scale).toFixed(2)),
       volume: d.volume
     }));
   }
@@ -209,10 +213,10 @@ function generateFallbackData(symbol, range) {
   const now = new Date();
   const days = range === '5d' ? 5 : range === '1mo' ? 30 : range === '3mo' ? 90 : range === '6mo' ? 180 : range === '1y' ? 365 : range === '3y' ? 1095 : 1825;
   const priceMap = {
-    'GC=F': 3385, 'SI=F': 38.5, 'CL=F': 62, 'BZ=F': 66,
-    'USDINR=X': 87.5,
+    'GC=F': 4414, 'SI=F': 65.55, 'CL=F': 62, 'BZ=F': 66,
+    'USDINR=X': 94.96,
     'GLD': 310, 'SLV': 35.5,
-    'GOLDBEES.NS': 88, 'SILVERBEES.NS': 118, 'TATSILV.NS': 120, 'TATAGOLD.NS': 88
+    'GOLDBEES.NS': 123.52, 'SILVERBEES.NS': 215.45, 'TATSILV.NS': 21.88, 'TATAGOLD.NS': 14.53
   };
   const basePrice = priceMap[symbol] || 100;
   const volatility = 0.012;

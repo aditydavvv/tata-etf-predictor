@@ -33,7 +33,7 @@ const ETF_CONFIG = {
     color: '#22d3ee',
     bgColor: 'rgba(34, 211, 238, 0.18)',
     currency: '₹',
-    fallbackPrice: 23.37
+    fallbackPrice: 21.88
   },
   'tata-gold-etf': {
     symbol: 'TATAGOLD.NS',
@@ -43,7 +43,7 @@ const ETF_CONFIG = {
     color: '#fbbf24',
     bgColor: 'rgba(251, 191, 36, 0.18)',
     currency: '₹',
-    fallbackPrice: 15.36
+    fallbackPrice: 14.53
   }
 };
 
