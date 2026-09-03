@@ -199,7 +199,7 @@ function generateFallbackData(symbol, range) {
     // Rebase the synthetic series to the real current market price so the
     // latest point reflects the live Tata Silver ETF price.
     const lastClose = slice[slice.length - 1]?.close;
-    const scale = symbol === 'TATSILV.NS' && lastClose ? 21.88 / lastClose : 1;
+    const scale = symbol === 'TATSILV.NS' && lastClose ? 22.43 / lastClose : 1;
     return slice.map(d => ({
       date: new Date(d.date),
       open: symbol === 'SI=F' ? d.spotSilver : parseFloat((d.open * scale).toFixed(2)),
@@ -213,10 +213,10 @@ function generateFallbackData(symbol, range) {
   const now = new Date();
   const days = range === '5d' ? 5 : range === '1mo' ? 30 : range === '3mo' ? 90 : range === '6mo' ? 180 : range === '1y' ? 365 : range === '3y' ? 1095 : 1825;
   const priceMap = {
-    'GC=F': 4480, 'SI=F': 66.4, 'CL=F': 62, 'BZ=F': 66,
-    'USDINR=X': 94.45,
+    'GC=F': 4477, 'SI=F': 66.45, 'CL=F': 62, 'BZ=F': 66,
+    'USDINR=X': 94.48,
     'GLD': 310, 'SLV': 35.5,
-    'GOLDBEES.NS': 123.52, 'SILVERBEES.NS': 215.45, 'TATSILV.NS': 21.88, 'TATAGOLD.NS': 14.53
+    'GOLDBEES.NS': 123.52, 'SILVERBEES.NS': 215.45, 'TATSILV.NS': 22.43, 'TATAGOLD.NS': 14.83
   };
   const basePrice = priceMap[symbol] || 100;
   const volatility = 0.012;

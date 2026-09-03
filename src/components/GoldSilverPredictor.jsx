@@ -57,13 +57,13 @@ export default function GoldSilverPredictor() {
   const silverData = metalETFs.silver;
 
   // Real Market Prices
-  const tataSilverPrice = indianETFs?.tataSilverETF?.price || 21.88;
-  const tataGoldPrice = indianETFs?.tataGoldETF?.price || 14.53;
-  const spotSilverUSD = silverAnalysis?.silver?.price || 66.4;
-  const spotGoldUSD = silverAnalysis?.gold?.price || 4480.0;
+  const tataSilverPrice = indianETFs?.tataSilverETF?.price || 22.43;
+  const tataGoldPrice = indianETFs?.tataGoldETF?.price || 14.83;
+  const spotSilverUSD = silverAnalysis?.silver?.price || 66.45;
+  const spotGoldUSD = silverAnalysis?.gold?.price || 4477.0;
   const liveRatio = spotSilverUSD > 0 ? parseFloat((spotGoldUSD / spotSilverUSD).toFixed(1)) : 66.8;
 
-  const usdRate = silverAnalysis?.usdInr?.rate || 94.45;
+  const usdRate = silverAnalysis?.usdInr?.rate || 94.48;
   const spotSilverINRkg = Math.round(spotSilverUSD * 32.1507 * usdRate * 1.15);
   const spotGoldINR10g = Math.round((spotGoldUSD / 31.1035) * 10 * usdRate * 1.15);
 
