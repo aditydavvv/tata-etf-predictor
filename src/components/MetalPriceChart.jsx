@@ -131,11 +131,15 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
   }, [etfType]);
 
   const prices = data.map(d => d.close).filter(Boolean);
-  if (liveData?.price && prices.length > 0) {
-    prices[prices.length - 1] = liveData.price;
+  // Anchor the current price to the real Groww level. When the live Groww
+  // scrape is unavailable we fall back to the known-correct price instead of
+  // Yahoo's historical close, which can lag/mismatch the real market.
+  const livePrice = liveData?.price || config.fallbackPrice;
+  if (prices.length > 0) {
+    prices[prices.length - 1] = livePrice;
   }
   const dates = data.map((d, i) => {
-    if (i === data.length - 1 && liveData?.price) {
+    if (i === data.length - 1 && livePrice) {
       return new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     }
     const dt = new Date(d.date);
@@ -252,9 +256,9 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
     }
   };
 
-  const cur = liveData?.price || prices[prices.length - 1] || config.fallbackPrice;
+  const cur = livePrice;
   const prevClose = liveData?.prevClose || prices[prices.length - 2] || cur;
-  const chg = liveData?.change ?? (cur - prevClose);
+  const chg = liveData?.change != null ? liveData.change : (cur - prevClose);
   const chgP = liveData?.changePercent ?? (prevClose ? ((chg / prevClose) * 100) : 0);
 
   return (
