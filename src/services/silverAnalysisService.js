@@ -111,9 +111,9 @@ export async function fetchSilverAnalysis() {
 function generateFallbackAnalysis() {
   // Real current market levels (used when the live Yahoo feed is unreachable)
   const latest = {
-    spotSilver: 65.55, spotGold: 4414, goldSilverRatio: 67.3, usdInr: 94.96
+    spotSilver: 66.40, spotGold: 4480, goldSilverRatio: 67.5, usdInr: 94.45
   };
-  const prev = { spotSilver: 65.37, spotGold: 4396, usdInr: 94.94 };
+  const prev = { spotSilver: 65.46, spotGold: 4414.6, usdInr: 94.96 };
   const silverChange = ((latest.spotSilver - prev.spotSilver) / prev.spotSilver) * 100;
   const goldChange = ((latest.spotGold - prev.spotGold) / prev.spotGold) * 100;
 

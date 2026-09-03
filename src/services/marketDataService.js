@@ -213,8 +213,8 @@ function generateFallbackData(symbol, range) {
   const now = new Date();
   const days = range === '5d' ? 5 : range === '1mo' ? 30 : range === '3mo' ? 90 : range === '6mo' ? 180 : range === '1y' ? 365 : range === '3y' ? 1095 : 1825;
   const priceMap = {
-    'GC=F': 4414, 'SI=F': 65.55, 'CL=F': 62, 'BZ=F': 66,
-    'USDINR=X': 94.96,
+    'GC=F': 4480, 'SI=F': 66.4, 'CL=F': 62, 'BZ=F': 66,
+    'USDINR=X': 94.45,
     'GLD': 310, 'SLV': 35.5,
     'GOLDBEES.NS': 123.52, 'SILVERBEES.NS': 215.45, 'TATSILV.NS': 21.88, 'TATAGOLD.NS': 14.53
   };
