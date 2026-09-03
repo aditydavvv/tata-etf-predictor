@@ -131,13 +131,18 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
   }, [etfType]);
 
   const prices = data.map(d => d.close).filter(Boolean);
-  // Anchor the current price to the real Groww level. When the live Groww
-  // scrape is unavailable we fall back to the known-correct price instead of
-  // Yahoo's historical close, which can lag/mismatch the real market.
+  // Anchor the chart to the real current price level (Groww). Rebasing the
+  // whole visible series keeps the chart internally consistent — the current
+  // price matches the last point instead of creating a step from Yahoo's
+  // historical close, which can lag/mismatch the real market.
   const livePrice = liveData?.price || config.fallbackPrice;
-  if (prices.length > 0) {
-    prices[prices.length - 1] = livePrice;
-  }
+  const scaledPrices = (() => {
+    if (prices.length === 0) return prices;
+    const lastClose = prices[prices.length - 1];
+    if (!lastClose || lastClose === livePrice) return prices;
+    const scale = livePrice / lastClose;
+    return prices.map(p => parseFloat((p * scale).toFixed(2)));
+  })();
   const dates = data.map((d, i) => {
     if (i === data.length - 1 && livePrice) {
       return new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
@@ -148,9 +153,9 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
       : dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   });
 
-  const trend = calculateTrend(prices);
-  const sma20 = calculateSMA(prices);
-  const preds = showPred ? predictFuture(prices) : [];
+  const trend = calculateTrend(scaledPrices);
+  const sma20 = calculateSMA(scaledPrices);
+  const preds = showPred ? predictFuture(scaledPrices) : [];
 
   const futureDates = [];
   if (preds.length > 0) {
@@ -163,9 +168,9 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
   }
 
   const allDates = [...dates, ...futureDates];
-  const hPrices = [...prices, ...new Array(preds.length).fill(null)];
-  const pPrices = prices.length > 0
-    ? [...new Array(prices.length - 1).fill(null), prices[prices.length - 1], ...preds]
+  const hPrices = [...scaledPrices, ...new Array(preds.length).fill(null)];
+  const pPrices = scaledPrices.length > 0
+    ? [...new Array(scaledPrices.length - 1).fill(null), scaledPrices[scaledPrices.length - 1], ...preds]
     : [];
   const sPrices = [...sma20, ...new Array(preds.length).fill(null)];
 
@@ -257,7 +262,7 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
   };
 
   const cur = livePrice;
-  const prevClose = liveData?.prevClose || prices[prices.length - 2] || cur;
+  const prevClose = liveData?.prevClose || scaledPrices[scaledPrices.length - 2] || cur;
   const chg = liveData?.change != null ? liveData.change : (cur - prevClose);
   const chgP = liveData?.changePercent ?? (prevClose ? ((chg / prevClose) * 100) : 0);
 
@@ -320,7 +325,7 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
             <div className="skeleton-chart"></div>
             <div className="skeleton-line" style={{width:'40%',height:'16px'}}></div>
           </div>
-        ) : prices.length === 0 ? (
+        ) : scaledPrices.length === 0 ? (
           <div className="chart-empty"><p>No data available</p></div>
         ) : (
           <Line data={chartData} options={opts} />
