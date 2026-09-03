@@ -367,7 +367,7 @@ export function trainFullTataSilverModel(livePrice = null) {
   });
 
   // Current Latest Market State
-  const currentPrice = livePrice || closes[closes.length - 1] || 22.43;
+  const currentPrice = livePrice || 22.43;
   const latestFeatures = featureMatrix[featureMatrix.length - 1];
 
   // Forward Return Forecasts

@@ -22,7 +22,7 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
         const live = etfs?.tataSilverETF?.price;
         if (live) {
           setModelResult(prev => {
-            if (prev && Math.abs(prev.currentPrice - live) < 0.005) return prev;
+            if (prev && Math.abs(prev.currentPrice - live) < 0.05) return prev;
             return trainFullTataSilverModel(live);
           });
         }
