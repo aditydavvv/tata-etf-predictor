@@ -1,4 +1,4 @@
-import { fetchResilient } from '../utils/fetchResilient';
+import { fetchResilient } from '../utils/fetchResilient.js';
 
 const GROWW_URL = 'https://groww.in';
 

@@ -32,12 +32,14 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
 }
 
 .sector-card:hover {
-  border-color: var(--text-muted);
-  transform: translateX(4px);
+  border-color: var(--border-light);
+  transform: translateX(3px) perspective(600px) rotateX(0.5deg);
+  box-shadow: var(--shadow-md);
 }
 
 .sector-rank {
@@ -60,7 +62,7 @@
 
 .sector-bar-container {
   height: 6px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 3px;
   margin-bottom: 8px;
   overflow: hidden;
@@ -73,11 +75,11 @@
 }
 
 .sector-bar.positive {
-  background: linear-gradient(90deg, #10b981, #34d399);
+  background: linear-gradient(90deg, var(--accent-green), #4ade80);
 }
 
 .sector-bar.negative {
-  background: linear-gradient(90deg, #ef4444, #f87171);
+  background: linear-gradient(90deg, var(--accent-red), #f87171);
 }
 
 .sector-events {
@@ -89,7 +91,7 @@
 .event-ref {
   font-size: 0.7rem;
   color: var(--text-muted);
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   padding: 2px 8px;
   border-radius: 4px;
 }

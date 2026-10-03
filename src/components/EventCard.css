@@ -6,17 +6,18 @@
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  box-shadow: var(--shadow-sm);
 }
 
 .event-card:hover {
-  border-color: var(--text-muted);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  transform: translateY(-1px);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px) perspective(600px) rotateX(0.5deg);
 }
 
 .event-card.expanded {
   border-color: var(--accent-blue);
-  box-shadow: 0 4px 30px rgba(59, 130, 246, 0.1);
+  box-shadow: var(--shadow-md), 0 0 20px rgba(59, 130, 246, 0.08);
 }
 
 .event-card-header {
@@ -49,7 +50,7 @@
   color: var(--text-muted);
   padding: 4px 10px;
   border-radius: 6px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
 }
 
@@ -110,7 +111,7 @@
   flex: 1;
   min-width: 100px;
   height: 6px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -172,7 +173,7 @@
   align-items: center;
   padding: 8px 12px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
 }
 
@@ -217,7 +218,7 @@
 .info-block {
   padding: 12px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
 }
 
@@ -259,7 +260,7 @@
   color: var(--text-muted);
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255,255,255,0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
   transition: color 0.3s;
 }
 

@@ -231,12 +231,13 @@
   padding: 18px;
   cursor: pointer;
   transition: all 0.3s;
+  box-shadow: var(--shadow-sm);
 }
 
 .news-card:hover {
-  border-color: var(--text-muted);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  border-color: var(--border-light);
+  transform: translateY(-2px) perspective(800px) rotateX(0.5deg);
+  box-shadow: var(--shadow-md);
 }
 
 .news-card.expanded {
@@ -325,13 +326,13 @@
 
 .sentiment-badge.positive { background: var(--glow-green); color: var(--accent-green); }
 .sentiment-badge.negative { background: var(--glow-red); color: var(--accent-red); }
-.sentiment-badge.mixed { background: rgba(245, 158, 11, 0.15); color: var(--accent-yellow); }
+.sentiment-badge.mixed { background: rgba(234, 179, 8, 0.12); color: var(--accent-yellow); }
 
 .sentiment-bar-mini {
   flex: 1;
   max-width: 120px;
   height: 5px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -366,7 +367,7 @@
   margin-bottom: 14px;
   padding: 14px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
 }
 
@@ -401,7 +402,7 @@
   align-items: center;
   padding: 8px 12px;
   border-radius: 6px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
 }
 
@@ -448,7 +449,7 @@
   color: var(--text-muted);
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255,255,255,0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .news-card:hover .expand-hint {

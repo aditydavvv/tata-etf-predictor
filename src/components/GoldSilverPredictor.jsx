@@ -217,6 +217,16 @@ export default function GoldSilverPredictor() {
         {asOfLabel && <span className="data-asof">Prices as of {asOfLabel} IST</span>}
       </div>
 
+      {/* AI/ML ETF Training & Forecasting Engine */}
+      <ModelTrainingDashboard onPredictionUpdate={setMlModelOutput} />
+
+      <div className="chart-tabs">
+        <button className={`chart-tab ${activeChart === 'tata-silver-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-silver-etf')}>Tata Silver ETF</button>
+        <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
+      </div>
+
+      <MetalPriceChart etfType={activeChart} />
+
       <div className="current-prices">
         {/* Tata Silver ETF Card */}
         <div className="price-card silver">
@@ -267,9 +277,6 @@ export default function GoldSilverPredictor() {
         </p>
       )}
 
-      {/* AI/ML ETF Training & Forecasting Engine */}
-      <ModelTrainingDashboard onPredictionUpdate={setMlModelOutput} />
-
       <div className="event-selector">
         <label>Select a Global Event to Predict Impact:</label>
         <div className="event-buttons">
@@ -292,13 +299,6 @@ export default function GoldSilverPredictor() {
           <span className="ep-desc">{selectedEvent.description}</span>
         </div>
       </div>
-
-      <div className="chart-tabs">
-        <button className={`chart-tab ${activeChart === 'tata-silver-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-silver-etf')}>Tata Silver ETF</button>
-        <button className={`chart-tab ${activeChart === 'tata-gold-etf' ? 'active tata' : ''}`} onClick={() => setActiveChart('tata-gold-etf')}>Tata Gold ETF</button>
-      </div>
-
-      <MetalPriceChart etfType={activeChart} />
 
       <div className="metal-tabs">
         <button className={`metal-tab ${activeTab === 'both' ? 'active' : ''}`} onClick={() => setActiveTab('both')}>Both</button>
