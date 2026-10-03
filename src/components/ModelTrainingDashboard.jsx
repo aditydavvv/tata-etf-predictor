@@ -6,6 +6,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { trainFullTataSilverModel, simulateCustomScenario } from '../services/etfModelTrainer';
+import { buildRealSilverDataset } from '../services/silverDataset';
 import './ModelTrainingDashboard.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
@@ -14,16 +15,32 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
   const [isTraining, setIsTraining] = useState(false);
   const [modelType, setModelType] = useState('ensemble');
   const [selectedHorizon, setSelectedHorizon] = useState('7D');
-  const [chartRange, setChartRange] = useState('1Y'); // '6M', '1Y', '3Y', '5Y'
-  
+  const [chartRange, setChartRange] = useState('1Y'); // '6M', '1Y', '3Y', 'ALL'
+
   // Custom scenario sliders
   const [spotSilverDelta, setSpotSilverDelta] = useState(0);
   const [usdInrDelta, setUsdInrDelta] = useState(0);
   const [rateCutBps, setRateCutBps] = useState(0);
   const [solarDemandDelta, setSolarDemandDelta] = useState(0);
 
-  // Train model on 5-year data
-  const [modelResult, setModelResult] = useState(() => trainFullTataSilverModel());
+  // Real market history from the price snapshot; null while loading or if the
+  // snapshot is missing, in which case the trainer falls back to a series that
+  // is explicitly labelled as modelled rather than real.
+  const [dataset, setDataset] = useState(null);
+
+  // Train model on the available history
+  const [modelResult, setModelResult] = useState(() => trainFullTataSilverModel(null));
+
+  useEffect(() => {
+    let cancelled = false;
+    buildRealSilverDataset().then(built => {
+      if (!cancelled && built) {
+        setDataset(built);
+        setModelResult(trainFullTataSilverModel(built));
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Notify parent if needed
   useEffect(() => {
@@ -35,8 +52,7 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
   const handleRetrain = () => {
     setIsTraining(true);
     setTimeout(() => {
-      const updated = trainFullTataSilverModel();
-      setModelResult(updated);
+      setModelResult(trainFullTataSilverModel(dataset));
       setIsTraining(false);
     }, 600);
   };
@@ -135,7 +151,7 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
           tension: 0.22
         },
         {
-          label: '5-Year ML Model Fit Curve',
+          label: 'ML Model Fit Curve (in-sample)',
           data: fittedDataPadded,
           borderColor: '#c084fc',
           borderWidth: 2,
@@ -228,8 +244,9 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
 
   if (!modelResult) return null;
 
-  const { metrics, predictions, featureWeights, currentPrice } = modelResult;
+  const { metrics, predictions, featureWeights, currentPrice, provenance } = modelResult;
   const activePred = predictions[selectedHorizon];
+  const isRealData = provenance?.kind === 'real';
 
   return (
     <section className="model-dashboard-section">
@@ -237,11 +254,23 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
         <div className="header-left">
           <div className="title-row">
             <span className="brain-icon">🧠</span>
-            <h2>5-Year AI/ML ETF Training & Forecasting Engine</h2>
+            <h2>AI/ML ETF Training & Forecasting Engine</h2>
           </div>
           <p className="dashboard-sub">
-            Trained on <strong>{metrics.totalDays} trading days (2021–2026)</strong> across COMEX Silver Spot, Gold/Silver Ratio, USD/INR FX, Solar/EV Demand & Technical Oscillators.
+            Trained on <strong>{metrics.totalDays} trading days ({metrics.dataRange})</strong> across Tata Silver ETF closes, COMEX Silver Spot, Gold/Silver Ratio, USD/INR FX & Technical Oscillators.
           </p>
+          <p className={`dashboard-provenance ${isRealData ? 'real' : 'synthetic'}`}>
+            {isRealData
+              ? `✅ Real market history (${provenance.sources.join(', ')})`
+              : '⚠️ Modelled series — live price history unavailable, figures below are not market prices'}
+          </p>
+          {metrics.hasPredictiveSkill === false && (
+            <p className="dashboard-provenance synthetic">
+              ⚠️ Measured out-of-sample R² is {metrics.r2Score} — this model does not beat
+              predicting the historical mean, so treat every target below as a trend
+              extrapolation rather than a forecast.
+            </p>
+          )}
         </div>
         <div className="header-actions">
           <div className="model-badge">
@@ -253,7 +282,7 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
             onClick={handleRetrain}
             disabled={isTraining}
           >
-            {isTraining ? '⚙️ Training Model...' : '🔄 Retrain on 5-Year Data'}
+            {isTraining ? '⚙️ Training Model...' : '🔄 Retrain on Latest Data'}
           </button>
         </div>
       </div>
@@ -273,7 +302,7 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
         <div className="metric-card">
           <span className="metric-label">Model Fit ($R^2$ Score)</span>
           <span className="metric-value r2">{(metrics.r2Score * 100).toFixed(1)}%</span>
-          <span className="metric-caption">Variance explained across 5 years</span>
+          <span className="metric-caption">Out-of-sample variance explained</span>
         </div>
         <div className="metric-card">
           <span className="metric-label">Directional Hit Rate</span>
@@ -291,7 +320,7 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
           <span className="metric-caption">MAPE: {metrics.mape}</span>
         </div>
         <div className="metric-card">
-          <span className="metric-label">5-Year Historical CAGR</span>
+          <span className="metric-label">Historical CAGR</span>
           <span className="metric-value cagr">+{metrics.cagr}</span>
           <span className="metric-caption">Annualized silver ETF return</span>
         </div>
@@ -368,15 +397,15 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
         </div>
       </div>
 
-      {/* 5-Year Chart with ML Regression Overlay */}
+      {/* Price chart with ML regression overlay */}
       <div className="model-chart-wrapper">
         <div className="chart-ctrl-row">
           <div className="chart-title-group">
-            <h3>Tata Silver ETF: 5-Year Price & ML Fitted Trajectory</h3>
+            <h3>Tata Silver ETF: Price History & ML Fitted Trajectory</h3>
             <span className="chart-legend-sub">Actual Price vs Ridge Regularized & Holt-Winters Regression Forecast</span>
           </div>
           <div className="range-selector">
-            {['6M', '1Y', '3Y', '5Y'].map(r => (
+            {['6M', '1Y', '3Y', 'ALL'].map(r => (
               <button
                 key={r}
                 className={`range-btn ${chartRange === r ? 'active' : ''}`}
@@ -398,7 +427,7 @@ export default function ModelTrainingDashboard({ onPredictionUpdate }) {
         {/* Feature Importance Panel */}
         <div className="panel-card factors-card">
           <div className="panel-header">
-            <h4>⚖️ 5-Year Key Predictive Drivers & Factor Weights</h4>
+            <h4>⚖️ Key Predictive Drivers & Factor Weights</h4>
             <span className="panel-sub">Normalized feature influence on price direction</span>
           </div>
           <div className="factors-list">

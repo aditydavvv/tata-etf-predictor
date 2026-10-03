@@ -48,6 +48,20 @@
   color: #38bdf8;
 }
 
+.dashboard-provenance {
+  margin: 6px 0 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.dashboard-provenance.real {
+  color: #34d399;
+}
+
+.dashboard-provenance.synthetic {
+  color: #fbbf24;
+}
+
 .header-actions {
   display: flex;
   flex-direction: column;

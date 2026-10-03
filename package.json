@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "fetch:prices": "node scripts/fetchPrices.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

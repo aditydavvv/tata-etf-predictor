@@ -3,12 +3,14 @@ export const metalETFs = {
     name: "Tata Gold ETF",
     symbol: "TATAGOLD",
     etfIndia: "Tata Gold Exchange Traded Fund (NSE: TATAGOLD)",
-    currentPrice: 15.36,
-    etfPrice: 15.36,
-    bullionPrice: 155000,
+    // Prices come from the CI snapshot (see services/priceSnapshot.js).
+    // Hardcoded values here previously shipped stale numbers to the UI.
+    currentPrice: null,
+    etfPrice: null,
+    bullionPrice: null,
     currency: "INR",
     unit: "per ETF unit",
-    bullionUnit: "₹1,55,000 per 10g spot",
+    bullionUnit: null,
     historicalReactions: [
       {
         event: "Fed Rate Cut (Dovish Signal)",
@@ -128,12 +130,14 @@ export const metalETFs = {
     name: "Tata Silver ETF",
     symbol: "TATSILV",
     etfIndia: "Tata Silver Exchange Traded Fund (NSE: TATSILV)",
-    currentPrice: 23.37,
-    etfPrice: 23.37,
-    bullionPrice: 230000,
+    // Prices come from the CI snapshot (see services/priceSnapshot.js).
+    // Hardcoded values here previously shipped stale numbers to the UI.
+    currentPrice: null,
+    etfPrice: null,
+    bullionPrice: null,
     currency: "INR",
     unit: "per ETF unit",
-    bullionUnit: "₹2,30,000 per 1kg spot",
+    bullionUnit: null,
     historicalReactions: [
       {
         event: "Fed Rate Cut (Dovish Signal)",

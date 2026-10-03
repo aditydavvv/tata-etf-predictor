@@ -1,150 +1,174 @@
-import { YAHOO_CHART_BASE } from './marketDataService.js';
 import { fetchResilient } from '../utils/fetchResilient.js';
-import { FIVE_YEAR_SILVER_DATA } from '../data/fiveYearSilverData.js';
+import { loadSnapshot, getQuote, getHistory } from './priceSnapshot.js';
+import { YAHOO_CHART_BASE } from './marketDataService.js';
 
 const YAHOO_BASE = YAHOO_CHART_BASE;
 
-export async function fetchSilverAnalysis() {
+const SYMBOLS = { silver: 'SI=F', gold: 'GC=F', usdInr: 'USDINR=X' };
+
+async function fetchYahooChart(symbol, range, interval) {
   try {
-    const [silverWeekly, goldWeekly, usdinr] = await Promise.allSettled([
-      fetchResilient(`${YAHOO_BASE}/SI=F?range=5d&interval=1d`).then(r => r.json()),
-      fetchResilient(`${YAHOO_BASE}/GC=F?range=5d&interval=1d`).then(r => r.json()),
-      fetchResilient(`${YAHOO_BASE}/USDINR=X?range=5d&interval=1d`).then(r => r.json())
-    ]);
-
-    const silverData = silverWeekly.status === 'fulfilled' ? silverWeekly.value?.chart?.result?.[0] : null;
-    const goldData = goldWeekly.status === 'fulfilled' ? goldWeekly.value?.chart?.result?.[0] : null;
-    const usdinrData = usdinr.status === 'fulfilled' ? usdinr.value?.chart?.result?.[0] : null;
-
-    if (!silverData) {
-      return generateFallbackAnalysis();
-    }
-
-    const silverMeta = silverData.meta;
-    const silverQuotes = silverData.indicators?.quote?.[0] || {};
-
-    const goldMeta = goldData?.meta;
-    const goldQuotes = goldData?.indicators?.quote?.[0] || {};
-
-    const usdinrMeta = usdinrData?.meta;
-
-    const silverPrices = silverQuotes.close?.filter(Boolean) || [];
-    const goldPrices = goldQuotes.close?.filter(Boolean) || [];
-
-    const currentSilver = silverMeta.regularMarketPrice || silverPrices[silverPrices.length - 1] || 38.5;
-    const prevSilver = silverMeta.chartPreviousClose || silverMeta.previousClose || silverPrices[silverPrices.length - 2] || currentSilver;
-    const silverChange = prevSilver ? ((currentSilver - prevSilver) / prevSilver) * 100 : 0;
-
-    const currentGold = goldMeta?.regularMarketPrice || goldPrices[goldPrices.length - 1] || 3380;
-    const prevGold = goldMeta?.chartPreviousClose || goldMeta?.previousClose || currentGold;
-    const goldChange = currentGold && prevGold ? ((currentGold - prevGold) / prevGold) * 100 : 0;
-
-    const currentUSDRate = usdinrMeta?.regularMarketPrice || 87.5;
-    const prevUSDRate = usdinrMeta?.chartPreviousClose || usdinrMeta?.previousClose || 87.2;
-    const usdChange = currentUSDRate && prevUSDRate ? ((currentUSDRate - prevUSDRate) / prevUSDRate) * 100 : 0;
-
-    const goldSilverRatio = currentGold && currentSilver ? currentGold / currentSilver : 87.8;
-
-    let goldSilverRatioChange = 0;
-    if (goldSilverRatio && goldPrices.length >= 3 && silverPrices.length >= 3) {
-      const pairs = Math.min(goldPrices.length, silverPrices.length);
-      const ratioSeries = [];
-      for (let i = 1; i <= pairs; i++) {
-        const g = goldPrices[goldPrices.length - i];
-        const s = silverPrices[silverPrices.length - i];
-        if (g && s) ratioSeries.push(g / s);
-      }
-      if (ratioSeries.length >= 3) {
-        const ratioAvg = ratioSeries.reduce((a, b) => a + b, 0) / ratioSeries.length;
-        goldSilverRatioChange = ((goldSilverRatio - ratioAvg) / ratioAvg) * 100;
-      }
-    }
-
-    let momentum3d = 0;
-    let momentum5d = 0;
-    if (silverPrices.length >= 3) {
-      momentum3d = ((silverPrices[silverPrices.length - 1] - silverPrices[silverPrices.length - 3]) / silverPrices[silverPrices.length - 3]) * 100;
-    }
-    if (silverPrices.length >= 5) {
-      momentum5d = ((silverPrices[silverPrices.length - 1] - silverPrices[0]) / silverPrices[0]) * 100;
-    }
-
-    let volatility = 1.8;
-    if (silverPrices.length >= 2) {
-      const returns = [];
-      for (let i = 1; i < silverPrices.length; i++) {
-        returns.push((silverPrices[i] - silverPrices[i - 1]) / silverPrices[i - 1]);
-      }
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
-      volatility = Math.max(0.5, Math.sqrt(variance) * 100);
-    }
-
-    const trend = calculateTrend(silverPrices.length >= 3 ? silverPrices : [37.8, 38.1, 38.5]);
-
-    return {
-      silver: {
-        price: currentSilver,
-        change: parseFloat(silverChange.toFixed(2)),
-        momentum3d: parseFloat(momentum3d.toFixed(2)),
-        momentum5d: parseFloat(momentum5d.toFixed(2)),
-        trend,
-        volatility: parseFloat(volatility.toFixed(2))
-      },
-      gold: {
-        price: currentGold,
-        change: parseFloat(goldChange.toFixed(2))
-      },
-      goldSilverRatio: parseFloat(goldSilverRatio.toFixed(1)),
-      goldSilverRatioChange: parseFloat(goldSilverRatioChange.toFixed(2)),
-      usdInr: {
-        rate: currentUSDRate,
-        change: parseFloat(usdChange.toFixed(2))
-      },
-      analysis: generateAnalysis(silverChange, goldChange, goldSilverRatio, goldSilverRatioChange, momentum3d, momentum5d, trend, volatility)
-    };
-  } catch (error) {
-    console.warn('Silver live analysis failed, using high-fidelity dataset context:', error);
-    return generateFallbackAnalysis();
+    const response = await fetchResilient(`${YAHOO_BASE}/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`);
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return payload.chart?.result?.[0] || null;
+  } catch {
+    return null;
   }
 }
 
-function generateFallbackAnalysis() {
-  const latest = FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1] || {
-    spotSilver: 38.5, spotGold: 3380, goldSilverRatio: 87.8, usdInr: 87.5
-  };
-  const prev = FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 2] || latest;
-  const silverChange = ((latest.spotSilver - prev.spotSilver) / prev.spotSilver) * 100;
-  const goldChange = ((latest.spotGold - prev.spotGold) / prev.spotGold) * 100;
+/**
+ * Snapshot-first quote. Live Yahoo is only reachable in dev; in production the
+ * CI snapshot is the only source, so a missing entry stays null instead of
+ * falling back to an invented number.
+ */
+async function resolveQuote(symbol) {
+  await loadSnapshot();
 
-  const trend = { direction: 'up', strength: 74, r2: 0.82 };
-  const volatility = 1.65;
+  const snapshotted = getQuote(symbol);
+  if (snapshotted) {
+    return {
+      price: snapshotted.price,
+      prevClose: snapshotted.prevClose,
+      change: snapshotted.change,
+      changePercent: snapshotted.changePercent,
+      source: snapshotted.source,
+      asOf: snapshotted.asOf
+    };
+  }
+
+  const result = await fetchYahooChart(symbol, '1d', '5m');
+  const price = result?.meta?.regularMarketPrice;
+  if (!Number.isFinite(price)) return null;
+
+  const prevClose = Number.isFinite(result.meta.previousClose)
+    ? result.meta.previousClose
+    : result.meta.chartPreviousClose ?? null;
+
+  return {
+    price,
+    prevClose,
+    change: prevClose != null ? price - prevClose : null,
+    changePercent: Number.isFinite(result.meta.regularMarketChangePercent)
+      ? result.meta.regularMarketChangePercent
+      : prevClose
+        ? ((price - prevClose) / prevClose) * 100
+        : null,
+    source: 'Yahoo Finance',
+    asOf: null
+  };
+}
+
+/** Daily closes, oldest first. Empty when nothing real is available. */
+async function resolveDailyCloses(symbol) {
+  await loadSnapshot();
+
+  const history = getHistory(symbol);
+  if (history.length > 0) return history.map(row => row.close);
+
+  const result = await fetchYahooChart(symbol, '3mo', '1d');
+  const closes = result?.indicators?.quote?.[0]?.close || [];
+  return closes.filter(Number.isFinite);
+}
+
+export async function fetchSilverAnalysis() {
+  const [silverQuote, goldQuote, usdInrQuote, silverCloses, goldCloses] = await Promise.all([
+    resolveQuote(SYMBOLS.silver),
+    resolveQuote(SYMBOLS.gold),
+    resolveQuote(SYMBOLS.usdInr),
+    resolveDailyCloses(SYMBOLS.silver),
+    resolveDailyCloses(SYMBOLS.gold)
+  ]);
+
+  if (!silverQuote) return null;
+
+  const currentSilver = silverQuote.price;
+  const currentGold = goldQuote?.price ?? null;
+  const currentUSDRate = usdInrQuote?.price ?? null;
+
+  const prevSilver = silverQuote.prevClose ?? silverCloses[silverCloses.length - 2] ?? currentSilver;
+  const silverChange = prevSilver ? ((currentSilver - prevSilver) / prevSilver) * 100 : 0;
+  const goldChange = goldQuote?.prevClose ? ((currentGold - goldQuote.prevClose) / goldQuote.prevClose) * 100 : 0;
+  const usdChange = usdInrQuote?.prevClose ? ((currentUSDRate - usdInrQuote.prevClose) / usdInrQuote.prevClose) * 100 : 0;
+
+  const goldSilverRatio = currentGold ? currentGold / currentSilver : null;
+
+  let goldSilverRatioChange = 0;
+  if (goldSilverRatio && goldCloses.length >= 6 && silverCloses.length >= 6) {
+    const pairs = Math.min(goldCloses.length, silverCloses.length);
+    const ratioSeries = [];
+    for (let i = 1; i <= pairs; i++) {
+      const g = goldCloses[goldCloses.length - i];
+      const s = silverCloses[silverCloses.length - i];
+      if (g && s) ratioSeries.push(g / s);
+    }
+    if (ratioSeries.length >= 3) {
+      const ratioAvg = ratioSeries.reduce((sum, r) => sum + r, 0) / ratioSeries.length;
+      if (ratioAvg) goldSilverRatioChange = ((goldSilverRatio - ratioAvg) / ratioAvg) * 100;
+    }
+  }
+
+  const momentumOver = (series, sessions) => {
+    if (series.length < sessions + 1) return 0;
+    const from = series[series.length - 1 - sessions];
+    const to = series[series.length - 1];
+    return from ? ((to - from) / from) * 100 : 0;
+  };
+
+  const momentum3d = momentumOver(silverCloses, 3);
+  const momentum5d = momentumOver(silverCloses, 5);
+
+  let volatility = 0;
+  const volWindow = silverCloses.slice(-21);
+  if (volWindow.length >= 3) {
+    const returns = [];
+    for (let i = 1; i < volWindow.length; i++) {
+      returns.push((volWindow[i] - volWindow[i - 1]) / volWindow[i - 1]);
+    }
+    const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / returns.length;
+    volatility = Math.sqrt(variance) * 100;
+  }
+
+  const trend = calculateTrend(silverCloses);
 
   return {
     silver: {
-      price: latest.spotSilver,
+      price: currentSilver,
       change: parseFloat(silverChange.toFixed(2)),
-      momentum3d: 1.45,
-      momentum5d: 2.80,
+      momentum3d: parseFloat(momentum3d.toFixed(2)),
+      momentum5d: parseFloat(momentum5d.toFixed(2)),
       trend,
-      volatility
+      volatility: parseFloat(volatility.toFixed(2))
     },
-    gold: {
-      price: latest.spotGold,
-      change: parseFloat(goldChange.toFixed(2))
+    gold: currentGold
+      ? {
+          price: currentGold,
+          change: parseFloat(goldChange.toFixed(2))
+        }
+      : null,
+    goldSilverRatio: goldSilverRatio ? parseFloat(goldSilverRatio.toFixed(1)) : null,
+    goldSilverRatioChange: parseFloat(goldSilverRatioChange.toFixed(2)),
+    usdInr: currentUSDRate
+      ? {
+          rate: currentUSDRate,
+          change: parseFloat(usdChange.toFixed(2))
+        }
+      : null,
+    provenance: {
+      source: silverQuote.source,
+      asOf: silverQuote.asOf,
+      silverSessions: silverCloses.length,
+      goldSessions: goldCloses.length
     },
-    goldSilverRatio: latest.goldSilverRatio,
-    goldSilverRatioChange: -0.45,
-    usdInr: {
-      rate: latest.usdInr,
-      change: 0.12
-    },
-    analysis: generateAnalysis(silverChange, goldChange, latest.goldSilverRatio, -0.45, 1.45, 2.80, trend, volatility)
+    analysis: generateAnalysis(silverChange, goldChange, goldSilverRatio, goldSilverRatioChange, momentum3d, momentum5d, trend, volatility)
   };
 }
 
 function calculateTrend(prices) {
-  if (prices.length < 3) return { direction: 'up', strength: 65, r2: 0.75 };
+  if (!Array.isArray(prices) || prices.length < 3) {
+    return { direction: 'neutral', strength: 0, r2: 0 };
+  }
   const n = prices.length;
   const xMean = (n - 1) / 2;
   const yMean = prices.reduce((a, b) => a + b, 0) / n;
@@ -160,7 +184,7 @@ function calculateTrend(prices) {
     sse += Math.pow(prices[i] - (intercept + slope * i), 2);
   }
   const sst = prices.reduce((s, p) => s + Math.pow(p - yMean, 2), 0);
-  const r2 = sst > 0 ? Math.max(0, 1 - sse / sst) : 0.65;
+  const r2 = sst > 0 ? Math.max(0, 1 - sse / sst) : 0;
   const driftPctPerDay = yMean > 0 ? (slope / yMean) * 100 : 0;
   const effectiveDrift = driftPctPerDay * r2;
   return {
@@ -216,7 +240,7 @@ function generateAnalysis(silverChange, goldChange, goldSilverRatio, goldSilverR
   }
 
   if (trend.direction === 'up') {
-    signals.push(`Robust Uptrend intact (Trend Strength ${trend.strength}%)`);
+    signals.push(`Robust uptrend intact (Trend Strength ${trend.strength}%)`);
     bullishScore += 2;
   } else if (trend.direction === 'down') {
     signals.push(`Downtrend in place (Strength ${trend.strength}%)`);
@@ -227,7 +251,7 @@ function generateAnalysis(silverChange, goldChange, goldSilverRatio, goldSilverR
     signals.push('High volatility regime (Realized Vol > 2.5%)');
   }
 
-  signals.push('Structural Green Energy & Solar PV demand supports long-term base');
+  signals.push('Structural green energy & solar PV demand supports long-term base');
   bullishScore += 1;
 
   const netScore = bullishScore - bearishScore;
@@ -248,8 +272,8 @@ function generateAnalysis(silverChange, goldChange, goldSilverRatio, goldSilverR
 }
 
 export function predictTataSilverETF(silverAnalysis, marketDepth = null, selectedEvent = null, mlModelOutput = null) {
-  const analysis = silverAnalysis || generateFallbackAnalysis();
-  const { silver, gold, goldSilverRatio, goldSilverRatioChange, usdInr } = analysis;
+  if (!silverAnalysis?.silver) return null;
+  const { silver, gold, goldSilverRatio, goldSilverRatioChange, usdInr } = silverAnalysis;
 
   const votes = [];
   const addVote = (weight, value, reason) => {
@@ -294,10 +318,12 @@ export function predictTataSilverETF(silverAnalysis, marketDepth = null, selecte
   }
 
   // 6. Gold/Silver Valuation Ratio
-  if (goldSilverRatio > 80) {
-    addVote(1.5, 0.75, `Gold/Silver ratio ${goldSilverRatio.toFixed(0)} indicates silver is historically undervalued`);
-  } else if (goldSilverRatio < 60) {
-    addVote(1.0, -0.6, `Gold/Silver ratio ${goldSilverRatio.toFixed(0)} indicates silver rich`);
+  if (Number.isFinite(goldSilverRatio)) {
+    if (goldSilverRatio > 80) {
+      addVote(1.5, 0.75, `Gold/Silver ratio ${goldSilverRatio.toFixed(0)} indicates silver is historically undervalued`);
+    } else if (goldSilverRatio < 60) {
+      addVote(1.0, -0.6, `Gold/Silver ratio ${goldSilverRatio.toFixed(0)} indicates silver rich`);
+    }
   }
 
   // 7. Selected Global Event Impact
@@ -310,11 +336,11 @@ export function predictTataSilverETF(silverAnalysis, marketDepth = null, selecte
     addVote(1.8, eventImpactVal, `Global Event Impact: "${selectedEvent.title}"`);
   }
 
-  // 8. 5-Year ML Model Prediction integration
+  // 8. Historical ML Model Prediction integration
   if (mlModelOutput?.predictions?.['7D']) {
     const ml7d = mlModelOutput.predictions['7D'];
     const mlSignalVal = ml7d.signal === 'BULLISH' ? 0.85 : ml7d.signal === 'BEARISH' ? -0.85 : 0;
-    addVote(2.5, mlSignalVal, `5-Year ML Ensemble Forecast: ${ml7d.expectedMovePct > 0 ? '+' : ''}${ml7d.expectedMovePct}% in 7 days`);
+    addVote(2.5, mlSignalVal, `Historical model forecast: ${ml7d.expectedMovePct > 0 ? '+' : ''}${ml7d.expectedMovePct}% in 7 days`);
   }
 
   // 9. Live Market Depth (Order Book)
@@ -354,12 +380,13 @@ export function predictTataSilverETF(silverAnalysis, marketDepth = null, selecte
     confidence,
     expectedMove,
     reasoning,
-    analysis: analysis.analysis,
+    analysis: silverAnalysis.analysis,
     silverData: silver,
     goldData: gold,
     goldSilverRatio,
     usdInr,
+    provenance: silverAnalysis.provenance,
     timeframe: '1-7 days',
-    modelTrainedDays: 1260
+    modelTrainedDays: mlModelOutput?.metrics?.totalDays ?? null
   };
 }

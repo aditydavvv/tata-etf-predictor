@@ -7,12 +7,17 @@ import {
 import { Line } from 'react-chartjs-2';
 import { fetchHistoricalData } from '../services/marketDataService.js';
 import { fetchGrowwETFData } from '../services/growwService.js';
+import { loadSnapshot, getQuote } from '../services/priceSnapshot.js';
 import './MetalPriceChart.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const chartCache = new Map();
 const CACHE_TTL = 3 * 60 * 1000;
+
+/** Renders an unavailable number as an em dash. `Number(undefined)` is NaN and
+ *  `NaN?.toFixed()` still stringifies to "NaN", so test for a real number. */
+const fmtINR = value => (Number.isFinite(value) ? value.toFixed(2) : '—');
 
 const TIMEFRAMES = {
   '1W': { range: '5d', interval: '15m' },
@@ -32,8 +37,7 @@ const ETF_CONFIG = {
     emoji: '🥈',
     color: '#22d3ee',
     bgColor: 'rgba(34, 211, 238, 0.18)',
-    currency: '₹',
-    fallbackPrice: 23.37
+    currency: '₹'
   },
   'tata-gold-etf': {
     symbol: 'TATAGOLD.NS',
@@ -42,8 +46,7 @@ const ETF_CONFIG = {
     emoji: '🥇',
     color: '#fbbf24',
     bgColor: 'rgba(251, 191, 36, 0.18)',
-    currency: '₹',
-    fallbackPrice: 15.36
+    currency: '₹'
   }
 };
 
@@ -95,6 +98,7 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
   const [showPred, setShowPred] = useState(true);
   const [showSMA, setShowSMA] = useState(true);
   const [liveData, setLiveData] = useState(null);
+  const [quote, setQuote] = useState(null);
   const liveFetchedRef = useRef(null);
 
   const config = ETF_CONFIG[etfType] || ETF_CONFIG['tata-silver-etf'];
@@ -124,18 +128,26 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
     if (liveFetchedRef.current === etfType) return;
     liveFetchedRef.current = etfType;
     let cancelled = false;
+
+    // Current price from the CI snapshot. This is the authoritative quote and is
+    // preferred over the tail of the daily series, which lags by a session.
+    loadSnapshot().then(() => {
+      if (!cancelled) setQuote(getQuote(config.symbol));
+    });
+
     fetchGrowwETFData(etfType).then(d => {
       if (!cancelled && d) setLiveData(d);
     });
     return () => { cancelled = true; };
-  }, [etfType]);
+  }, [etfType, config.symbol]);
 
   const prices = data.map(d => d.close).filter(Boolean);
-  if (liveData?.price && prices.length > 0) {
-    prices[prices.length - 1] = liveData.price;
+  const currentPrice = quote?.price ?? liveData?.price ?? null;
+  if (currentPrice && prices.length > 0) {
+    prices[prices.length - 1] = currentPrice;
   }
   const dates = data.map((d, i) => {
-    if (i === data.length - 1 && liveData?.price) {
+    if (i === data.length - 1 && currentPrice) {
       return new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     }
     const dt = new Date(d.date);
@@ -252,10 +264,14 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
     }
   };
 
-  const cur = liveData?.price || prices[prices.length - 1] || config.fallbackPrice;
-  const prevClose = liveData?.prevClose || prices[prices.length - 2] || cur;
-  const chg = liveData?.change ?? (cur - prevClose);
-  const chgP = liveData?.changePercent ?? (prevClose ? ((chg / prevClose) * 100) : 0);
+  // Snapshot quote wins; Groww fills in NAV/open/high/low when CORS allows it.
+  // Falling back to `prices[length-1]` for both current and previous close made
+  // the header read "0.00 (0.00%)" whenever the last two closes matched.
+  const cur = quote?.price ?? liveData?.price ?? prices[prices.length - 1] ?? null;
+  const prevClose = quote?.prevClose ?? liveData?.prevClose ?? prices[prices.length - 2] ?? null;
+  const chg = quote?.change ?? liveData?.change ?? (cur != null && prevClose != null ? cur - prevClose : null);
+  const chgP = quote?.changePercent ?? liveData?.changePercent ?? (chg != null && prevClose ? (chg / prevClose) * 100 : null);
+  const priceSource = quote ? 'price snapshot (Yahoo Finance)' : liveData ? (liveData.source || 'Live Market Data (NSE)') : null;
 
   return (
     <div className="metal-chart-container">
@@ -268,24 +284,24 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
           </div>
         </div>
         <div className="chart-price">
-          <span className="current-price">₹{cur?.toFixed(2)}</span>
-          <span className={`price-change ${chg >= 0 ? 'positive' : 'negative'}`}>
-            {chg >= 0 ? '▲' : '▼'} {Math.abs(chg).toFixed(2)} ({Math.abs(chgP).toFixed(2)}%)
-          </span>
-          {liveData && (
-            <span className="data-source">Source: Live Market Data (NSE)</span>
+          <span className="current-price">{cur == null ? '—' : `₹${cur.toFixed(2)}`}</span>
+          {chg != null && (
+            <span className={`price-change ${chg >= 0 ? 'positive' : 'negative'}`}>
+              {chg > 0 ? '▲' : chg < 0 ? '▼' : ''} {Math.abs(chg).toFixed(2)} ({Math.abs(chgP ?? 0).toFixed(2)}%)
+            </span>
           )}
+          {priceSource && <span className="data-source">Source: {priceSource}</span>}
         </div>
       </div>
 
-      {liveData && (
+      {(liveData || quote) && (
         <div className="groww-details">
-          <div className="detail-chip">Open ₹{liveData.open?.toFixed(2) || '—'}</div>
-          <div className="detail-chip">High ₹{liveData.dayHigh?.toFixed(2) || '—'}</div>
-          <div className="detail-chip">Low ₹{liveData.dayLow?.toFixed(2) || '—'}</div>
-          <div className="detail-chip">Prev ₹{liveData.prevClose?.toFixed(2) || '—'}</div>
-          <div className="detail-chip">NAV ₹{liveData.nav?.toFixed(2) || '—'}</div>
-          <div className="detail-chip">Vol {liveData.volume || '—'}</div>
+          <div className="detail-chip">Open ₹{fmtINR(liveData?.open ?? quote?.open)}</div>
+          <div className="detail-chip">High ₹{fmtINR(liveData?.dayHigh ?? quote?.dayHigh)}</div>
+          <div className="detail-chip">Low ₹{fmtINR(liveData?.dayLow ?? quote?.dayLow)}</div>
+          <div className="detail-chip">Prev ₹{fmtINR(prevClose)}</div>
+          <div className="detail-chip">NAV ₹{fmtINR(liveData?.nav)}</div>
+          <div className="detail-chip">Vol {liveData?.volume ?? quote?.volume ?? '—'}</div>
         </div>
       )}
 
@@ -323,17 +339,17 @@ export default function MetalPriceChart({ etfType = 'tata-silver-etf' }) {
         )}
       </div>
 
-      {showPred && preds.length > 0 && (
-        <div className="prediction-summary">
-          <h4>7-Day Target Forecast</h4>
-          <div className="prediction-values">
-            <div className="pred-item"><span className="pred-label">Current Unit NAV</span><span className="pred-value">₹{cur?.toFixed(2)}</span></div>
-            <div className="pred-item"><span className="pred-label">Predicted 7-Day Target</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>₹{preds[preds.length - 1]?.toFixed(2)}</span></div>
-            <div className="pred-item"><span className="pred-label">Expected Return</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>{((preds[preds.length - 1] - cur) / cur * 100).toFixed(2)}%</span></div>
+{showPred && preds.length > 0 && cur != null && (
+          <div className="prediction-summary">
+            <h4>7-Day Target Forecast</h4>
+            <div className="prediction-values">
+              <div className="pred-item"><span className="pred-label">Current Unit NAV</span><span className="pred-value">₹{cur.toFixed(2)}</span></div>
+              <div className="pred-item"><span className="pred-label">Predicted 7-Day Target</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>₹{preds[preds.length - 1]?.toFixed(2)}</span></div>
+              <div className="pred-item"><span className="pred-label">Expected Return</span><span className={`pred-value ${preds[preds.length - 1] > cur ? 'positive' : 'negative'}`}>{((preds[preds.length - 1] - cur) / cur * 100).toFixed(2)}%</span></div>
+            </div>
+            <p className="prediction-note">* Weighted linear trend extrapolation of the real close series above — not a forecast guarantee</p>
           </div>
-          <p className="prediction-note">* Based on multi-factor polynomial regression trained on historical market data</p>
-        </div>
-      )}
+        )}
     </div>
   );
 }

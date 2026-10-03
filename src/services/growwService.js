@@ -39,6 +39,20 @@ function extractMetric(text, label) {
   return null;
 }
 
+/**
+ * Groww lists peer ETFs on the same page, so the first ₹ on the page is not
+ * guaranteed to be this ETF. Anchor the search to the window that names our
+ * own ticker, and only fall back to a page-wide match if that fails.
+ */
+function parsePriceNearSymbol(text, symbol) {
+  const symbolIndex = text.indexOf(symbol);
+  if (symbolIndex === -1) return parsePriceFromText(text);
+
+  const window = text.slice(symbolIndex, symbolIndex + 400);
+  return parsePriceFromText(window) || parsePriceFromText(text);
+}
+
+
 export async function fetchGrowwETFData(etfType) {
   const config = ETF_PAGES[etfType];
   if (!config) return null;
@@ -52,7 +66,7 @@ export async function fetchGrowwETFData(etfType) {
 
     const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-    const priceData = parsePriceFromText(text);
+    const priceData = parsePriceNearSymbol(text, config.symbol);
     if (!priceData) return null;
 
     const low = extractMetric(text, "Today's low");
@@ -94,8 +108,10 @@ export async function fetchGrowwETFData(etfType) {
 }
 
 export async function fetchAllGrowwETFs() {
+  // Keys must match ETF_PAGES — this previously asked for 'gold-etf', which is
+  // not a key there, so gold always resolved to null.
   const [goldETF, tataSilver] = await Promise.allSettled([
-    fetchGrowwETFData('gold-etf'),
+    fetchGrowwETFData('tata-gold-etf'),
     fetchGrowwETFData('tata-silver-etf')
   ]);
   return {

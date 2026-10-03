@@ -8,6 +8,28 @@ import MetalPriceChart from './MetalPriceChart.jsx';
 import ModelTrainingDashboard from './ModelTrainingDashboard.jsx';
 import './GoldSilverPredictor.css';
 
+const GRAMS_PER_KG = 1000;
+const TROY_OUNCE_GRAMS = 31.1035;
+/** Indian bullion quotes carry GST plus fabrication; used only for the spot card. */
+const DOMESTIC_PREMIUM = 1.15;
+
+function formatINR(value, fractionDigits = 2) {
+  return Number.isFinite(value) ? `₹${value.toLocaleString('en-IN', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })}` : '—';
+}
+
+function formatUSD(value, fractionDigits = 2) {
+  return Number.isFinite(value) ? `$${value.toLocaleString('en-IN', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })}` : '—';
+}
+
+function formatAsOf(isoString) {
+  if (!isoString) return null;
+  const parsed = Date.parse(isoString);
+  if (!Number.isFinite(parsed)) return null;
+  return new Date(parsed).toLocaleString('en-IN', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
+  });
+}
+
 export default function GoldSilverPredictor() {
   const [selectedEvent, setSelectedEvent] = useState(globalEvents[0]);
   const [activeTab, setActiveTab] = useState('both');
@@ -43,10 +65,12 @@ export default function GoldSilverPredictor() {
     const priceInterval = setInterval(loadPrices, 300000);
     const depthInterval = setInterval(loadDepth, 300000);
     const analysisInterval = setInterval(loadSilverAnalysis, 300000);
+    const etfInterval = setInterval(loadETFs, 300000);
     return () => {
       clearInterval(priceInterval);
       clearInterval(depthInterval);
       clearInterval(analysisInterval);
+      clearInterval(etfInterval);
     };
   }, []);
 
@@ -56,16 +80,26 @@ export default function GoldSilverPredictor() {
   const goldData = metalETFs.gold;
   const silverData = metalETFs.silver;
 
-  // Real Market Prices
-  const tataSilverPrice = indianETFs?.tataSilverETF?.price || 23.37;
-  const tataGoldPrice = 15.36; // NSE: TATAGOLD
-  const spotSilverUSD = silverAnalysis?.silver?.price || 67.79;
-  const spotGoldUSD = silverAnalysis?.gold?.price || 4530.0;
-  const liveRatio = spotSilverUSD > 0 ? parseFloat((spotGoldUSD / spotSilverUSD).toFixed(1)) : 66.8;
+  // Live market prices. These are null when data is genuinely unavailable —
+  // never a hardcoded or modelled substitute.
+  const tataSilver = indianETFs?.tataSilverETF ?? null;
+  const tataGold = indianETFs?.tataGoldETF ?? null;
+  const spotSilverUSD = silverAnalysis?.silver?.price ?? null;
+  const spotGoldUSD = silverAnalysis?.gold?.price ?? null;
+  const usdRate = silverAnalysis?.usdInr?.rate ?? null;
+  const liveRatio = Number.isFinite(spotSilverUSD) && spotSilverUSD > 0 && Number.isFinite(spotGoldUSD)
+    ? parseFloat((spotGoldUSD / spotSilverUSD).toFixed(1))
+    : null;
 
-  const usdRate = silverAnalysis?.usdInr?.rate || 95.38;
-  const spotSilverINRkg = Math.round(spotSilverUSD * 32.1507 * usdRate * 1.15);
-  const spotGoldINR10g = Math.round((spotGoldUSD / 31.1035) * 10 * usdRate * 1.15);
+  const spotSilverINRkg = Number.isFinite(spotSilverUSD) && Number.isFinite(usdRate)
+    ? Math.round(spotSilverUSD * (GRAMS_PER_KG / TROY_OUNCE_GRAMS) * usdRate * DOMESTIC_PREMIUM)
+    : null;
+  const spotGoldINR10g = Number.isFinite(spotGoldUSD) && Number.isFinite(usdRate)
+    ? Math.round((spotGoldUSD / TROY_OUNCE_GRAMS) * 10 * usdRate * DOMESTIC_PREMIUM)
+    : null;
+
+  const asOf = tataSilver?.asOf ?? tataGold?.asOf ?? null;
+  const asOfLabel = formatAsOf(asOf);
 
   const renderPrediction = (prediction, metal, data) => {
     if (!prediction) return null;
@@ -178,8 +212,9 @@ export default function GoldSilverPredictor() {
   return (
     <section className="gold-silver-section">
       <div className="section-header">
-        <h2>Tata ETF Predictions & 5-Year Quantitative Forecasting</h2>
-        <span className="subtitle">Real-time analysis based on 5-year historical data, global precious metals, event shocks & order book depth</span>
+        <h2>Tata ETF Predictions & Quantitative Forecasting</h2>
+        <span className="subtitle">Live market prices, precious metals, event shocks & order book depth</span>
+        {asOfLabel && <span className="data-asof">Prices as of {asOfLabel} IST</span>}
       </div>
 
       <div className="current-prices">
@@ -188,8 +223,11 @@ export default function GoldSilverPredictor() {
           <span className="price-icon">🥈</span>
           <div className="price-info">
             <span className="price-label">Tata Silver ETF (TATSILV)</span>
-            <span className="price-value">₹{tataSilverPrice.toFixed(2)}</span>
-            <span className="price-unit">Spot Silver: ${spotSilverUSD.toFixed(2)}/oz (₹{(spotSilverINRkg/100000).toFixed(2)}L/kg)</span>
+            <span className="price-value">{formatINR(tataSilver?.price)}</span>
+            <span className="price-unit">
+              Spot Silver: {formatUSD(spotSilverUSD)}/oz
+              {Number.isFinite(spotSilverINRkg) && ` (₹${(spotSilverINRkg / 100000).toFixed(2)}L/kg)`}
+            </span>
           </div>
         </div>
 
@@ -198,8 +236,11 @@ export default function GoldSilverPredictor() {
           <span className="price-icon">🥇</span>
           <div className="price-info">
             <span className="price-label">Tata Gold ETF (TATAGOLD)</span>
-            <span className="price-value">₹{tataGoldPrice.toFixed(2)}</span>
-            <span className="price-unit">Spot Gold: ${spotGoldUSD.toFixed(0)}/oz (₹{(spotGoldINR10g/1000).toFixed(0)}K/10g)</span>
+            <span className="price-value">{formatINR(tataGold?.price)}</span>
+            <span className="price-unit">
+              Spot Gold: {formatUSD(spotGoldUSD, 0)}/oz
+              {Number.isFinite(spotGoldINR10g) && ` (₹${(spotGoldINR10g / 1000).toFixed(0)}K/10g)`}
+            </span>
           </div>
         </div>
 
@@ -208,15 +249,25 @@ export default function GoldSilverPredictor() {
           <span className="price-icon">⚖️</span>
           <div className="price-info">
             <span className="price-label">Gold/Silver Spot Ratio</span>
-            <span className="price-value">{liveRatio}</span>
+            <span className="price-value">{liveRatio ?? '—'}</span>
             <span className="price-unit">
-              Silver {liveRatio >= 80 ? 'undervalued vs Gold' : liveRatio <= 60 ? 'rich vs Gold' : 'fair historical range'}
+              {!Number.isFinite(liveRatio)
+                ? 'Live spot prices unavailable'
+                : liveRatio >= 80 ? 'Silver undervalued vs Gold' : liveRatio <= 60 ? 'Silver rich vs Gold' : 'Fair historical range'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* 5-Year AI/ML ETF Training & Forecasting Engine */}
+      {(!tataSilver || !tataGold) && (
+        <p className="data-warning">
+          ⚠️ Live ETF prices are unavailable right now. No placeholder is shown because a
+          fabricated price is worse than no price — the snapshot is refreshed roughly every
+          20 minutes during market hours.
+        </p>
+      )}
+
+      {/* AI/ML ETF Training & Forecasting Engine */}
       <ModelTrainingDashboard onPredictionUpdate={setMlModelOutput} />
 
       <div className="event-selector">
@@ -287,7 +338,7 @@ export default function GoldSilverPredictor() {
                 <span className="pred-stat-value timeframe">{tataSilverPrediction.timeframe}</span>
               </div>
               <div className="pred-stat">
-                <span className="pred-stat-label">5-Year Trend Momentum</span>
+                <span className="pred-stat-label">Trend Momentum</span>
                 <span className={`pred-stat-value ${tataSilverPrediction.silverData?.trend?.direction === 'up' ? 'positive' : tataSilverPrediction.silverData?.trend?.direction === 'down' ? 'negative' : 'neutral'}`}>
                   {tataSilverPrediction.silverData?.trend?.direction?.toUpperCase()} ({tataSilverPrediction.silverData?.trend?.strength}%)
                 </span>
@@ -301,7 +352,7 @@ export default function GoldSilverPredictor() {
 
             {tataSilverPrediction.analysis && tataSilverPrediction.analysis.signals.length > 0 && (
               <div className="pred-pattern">
-                <h4>5-Year Market & Fundamental Signals</h4>
+                <h4>Market & Fundamental Signals</h4>
                 <div className="signal-tags">
                   {tataSilverPrediction.analysis.signals.map((signal, i) => (
                     <span key={i} className="signal-tag">{signal}</span>
@@ -347,7 +398,7 @@ export default function GoldSilverPredictor() {
       </div>
 
       <div className="historical-reference">
-        <h3>📚 Historical Event-Reaction Reference (5-Year Catalog)</h3>
+        <h3>📚 Historical Event-Reaction Reference</h3>
         <p className="ref-subtitle">How Gold & Silver ETFs typically react to major global events</p>
 
         <div className="reference-grid">

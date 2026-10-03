@@ -1,15 +1,17 @@
 /**
- * 5-Year Historical Daily Dataset for Tata Silver ETF (2021 - 2026)
- * Realistically calibrated to domestic Indian precious metals market prices & COMEX futures.
- * 
- * Historical Benchmark Bounds:
- * 2021: Silver Spot $22 - $28/oz | Tata Silver ETF base: ₹60 - ₹72
- * 2022: Silver Spot $18 - $26/oz | Tata Silver ETF: ₹54 - ₹70 (Fed rate hike dip + recovery)
- * 2023: Silver Spot $20 - $26/oz | Tata Silver ETF: ₹68 - ₹80 (SVB banking crisis)
- * 2024: Silver Spot $23 - $34/oz | Tata Silver ETF: ₹74 - ₹102 (Solar TOPCon & Fed rate cut)
- * 2025: Silver Spot $30 - $36/oz | Tata Silver ETF: ₹96 - ₹114 (Green industrial surge)
- * 2026: Silver Spot $34 - $39/oz | Tata Silver ETF: ₹110 - ₹122 (Current market level)
+ * ⚠️ SYNTHETIC DATA — NOT MARKET DATA. Do not present any of these numbers as a
+ * price. This is a seeded random walk kept only as a last-resort fallback when
+ * the real snapshot in public/prices.json is unavailable.
+ *
+ * It is also historically wrong on purpose-free grounds: Tata Silver ETF only
+ * listed on 12 Jan 2024 (NSE firstTradeDate), yet this file fabricates a price
+ * series back to 2021, and its header comment (₹60-72 in 2021) contradicts its
+ * own generator (₹13.50 in 2021).
+ *
+ * The live path is services/silverDataset.js, which builds the training set from
+ * real Yahoo closes for TATSILV.NS, SI=F, GC=F and USDINR=X.
  */
+export const SYNTHETIC_SILVER_DATA = true;
 
 function generateFiveYearData() {
   const startDate = new Date('2021-01-04');
@@ -178,16 +180,26 @@ function generateFiveYearData() {
 
 export const FIVE_YEAR_SILVER_DATA = generateFiveYearData();
 
+/**
+ * Stats for the synthetic series only. The `||` defaults here used to advertise
+ * ₹74.20 -> ₹119.85 for a series whose actual first and last closes are ₹13.63
+ * and ₹22.62, which is exactly the kind of invented figure this file must not
+ * produce, so they are gone.
+ */
 export const DATASET_STATS = {
+  synthetic: true,
   totalDays: FIVE_YEAR_SILVER_DATA.length,
-  startDate: FIVE_YEAR_SILVER_DATA[0]?.date || '2021-01-04',
-  endDate: FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1]?.date || '2026-08-28',
-  startPrice: FIVE_YEAR_SILVER_DATA[0]?.close || 74.20,
-  latestPrice: FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1]?.close || 119.85,
+  startDate: FIVE_YEAR_SILVER_DATA[0]?.date ?? null,
+  endDate: FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1]?.date ?? null,
+  startPrice: FIVE_YEAR_SILVER_DATA[0]?.close ?? null,
+  latestPrice: FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1]?.close ?? null,
   minPrice: Math.min(...FIVE_YEAR_SILVER_DATA.map(d => d.close)),
   maxPrice: Math.max(...FIVE_YEAR_SILVER_DATA.map(d => d.close)),
-  cagr: ((Math.pow(
-    (FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1]?.close || 120) / (FIVE_YEAR_SILVER_DATA[0]?.close || 74.2),
-    1 / 5.6
-  ) - 1) * 100).toFixed(2)
+  cagr: (() => {
+    const first = FIVE_YEAR_SILVER_DATA[0];
+    const last = FIVE_YEAR_SILVER_DATA[FIVE_YEAR_SILVER_DATA.length - 1];
+    if (!first?.close || !last?.close) return null;
+    const years = (new Date(last.date) - new Date(first.date)) / (365.25 * 24 * 3600 * 1000);
+    return ((Math.pow(last.close / first.close, 1 / years) - 1) * 100).toFixed(2);
+  })()
 };

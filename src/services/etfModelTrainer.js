@@ -1,8 +1,13 @@
 import { FIVE_YEAR_SILVER_DATA, DATASET_STATS } from '../data/fiveYearSilverData.js';
+import { computeStats } from './silverDataset.js';
 
 /**
- * Advanced Quantitative & Machine Learning Engine for Tata Silver ETF
- * Trained on 5 Years (~1,475 Daily Sessions) of Market, Macro, and Technical Data.
+ * Quantitative & ML engine for Tata Silver ETF.
+ *
+ * Trained on the real dataset from services/silverDataset.js when the price
+ * snapshot is available. The synthetic series in data/fiveYearSilverData.js is
+ * only a labelled fallback, and `provenance.kind` records which was used so the
+ * UI never implies modelled numbers are market prices.
  */
 
 // Exponential Moving Average
@@ -246,8 +251,15 @@ export function trainRidgeReturns(X, y, lambda = 0.05) {
   return weights;
 }
 
-// Holt-Winters Double Exponential Smoothing for Forward Price Trajectory
-export function fitHoltWinters(prices, horizon = 252, alpha = 0.3, beta = 0.1) {
+/**
+ * Holt-Winters double exponential smoothing with a damped trend.
+ *
+ * The previous version projected `level + h * trend` with no damping. Over a
+ * 250-session horizon that is an unbounded linear extrapolation, which on the real
+ * TATSILV series (peak ~₹35 falling to ~₹21) produced a "1-year target" of ₹1.61.
+ * Damping converges the forecast to a finite asymptote instead of diverging.
+ */
+export function fitHoltWinters(prices, horizon = 252, alpha = 0.3, beta = 0.1, phi = 0.98) {
   let level = prices[0];
   let trend = (prices[1] - prices[0]);
   const fitted = [level];
@@ -255,16 +267,41 @@ export function fitHoltWinters(prices, horizon = 252, alpha = 0.3, beta = 0.1) {
   for (let i = 1; i < prices.length; i++) {
     const prevLevel = level;
     level = alpha * prices[i] + (1 - alpha) * (level + trend);
-    trend = beta * (level - prevLevel) + (1 - beta) * trend;
+    trend = beta * (level - prevLevel) + (1 - beta) * phi * trend;
     fitted.push(level + trend);
   }
 
   const forecast = [];
+  let cumulativeTrend = 0;
   for (let h = 1; h <= horizon; h++) {
-    forecast.push(level + h * trend);
+    cumulativeTrend += phi ** h * trend;
+    forecast.push(level + cumulativeTrend);
   }
 
-  return { fitted, forecast, level, trend };
+  return { fitted, forecast, level, trend, dampedDrift: cumulativeTrend };
+}
+
+/**
+ * Realised daily volatility and drift from log returns. The Monte Carlo bands used
+ * to assume a flat 1.5% daily vol and 4%/yr drift for every asset, so the
+ * "confidence intervals" were not derived from this ETF at all.
+ */
+function realisedStats(closes) {
+  if (closes.length < 3) return { dailyVolatility: 0.015, dailyDrift: 0 };
+
+  const logReturns = [];
+  for (let i = 1; i < closes.length; i++) {
+    if (closes[i - 1] > 0 && closes[i] > 0) logReturns.push(Math.log(closes[i] / closes[i - 1]));
+  }
+  if (logReturns.length < 2) return { dailyVolatility: 0.015, dailyDrift: 0 };
+
+  const mean = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
+  const variance = logReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (logReturns.length - 1);
+
+  return {
+    dailyVolatility: Math.sqrt(variance),
+    dailyDrift: mean
+  };
 }
 
 // Monte Carlo Probabilistic Simulation (3,000 paths)
@@ -305,8 +342,18 @@ export function runMonteCarloSimulation(currentPrice, dailyVolatility = 0.015, d
 /**
  * Main 5-Year ML Pipeline for Tata Silver ETF
  */
-export function trainFullTataSilverModel() {
-  const extracted = extractFeatures(FIVE_YEAR_SILVER_DATA);
+export function trainFullTataSilverModel(dataset) {
+  const rows = dataset?.rows?.length ? dataset.rows : FIVE_YEAR_SILVER_DATA;
+  const stats = dataset?.stats ?? computeStats(rows) ?? DATASET_STATS;
+  const provenance = dataset?.provenance ?? {
+    kind: 'synthetic',
+    label: 'Modelled series (no snapshot available)',
+    sessions: rows.length,
+    startDate: stats.startDate,
+    endDate: stats.endDate
+  };
+
+  const extracted = extractFeatures(rows);
   const { featureMatrix, targets, closes, dates, fullData } = extracted;
 
   const totalSamples = featureMatrix.length;
@@ -354,7 +401,9 @@ export function trainFullTataSilverModel() {
   }
 
   // Model Metrics
-  const r2 = parseFloat(Math.max(0.92, Math.min(0.985, 1 - (sse1 / (sst1 || 1)))).toFixed(3));
+  // Out-of-sample R² as measured. This was previously clamped into 0.92-0.985,
+  // which reported model quality that was never actually achieved.
+  const r2 = parseFloat(Math.max(-1, Math.min(1, 1 - (sse1 / (sst1 || 1)))).toFixed(3));
   const rmse = parseFloat(Math.sqrt(sse1 / nTest).toFixed(2));
   const mae = parseFloat((mae1 / nTest).toFixed(2));
   const mape = parseFloat(((mape1 / nTest) * 100).toFixed(2));
@@ -380,14 +429,38 @@ export function trainFullTataSilverModel() {
   const target7d = parseFloat((currentPrice * (1 + predRet7d)).toFixed(2));
   const target30d = parseFloat((currentPrice * (1 + predRet30d)).toFixed(2));
 
-  // Holt-Winters for 90d and 1y
+  // Damped Holt-Winters for 90d and 1y, bounded so a long-horizon trend
+  // extrapolation cannot assert a move the realised series never made.
   const hw = fitHoltWinters(closes, 252);
-  const target90d = parseFloat((hw.forecast[63] || target30d * 1.04).toFixed(2));
-  const target1y = parseFloat((hw.forecast[250] || currentPrice * 1.15).toFixed(2));
+  const MAX_LONG_HORIZON_MOVE = 0.4;
+  const clampLongHorizon = value => {
+    const bounded = Math.min(
+      currentPrice * (1 + MAX_LONG_HORIZON_MOVE),
+      Math.max(currentPrice * (1 - MAX_LONG_HORIZON_MOVE), value)
+    );
+    return Number.isFinite(bounded) ? parseFloat(bounded.toFixed(2)) : currentPrice;
+  };
+  const target90d = clampLongHorizon(hw.forecast[63] ?? target30d * 1.04);
+  const target1y = clampLongHorizon(hw.forecast[250] ?? currentPrice);
 
-  // Monte Carlo confidence intervals
-  const mc7d = runMonteCarloSimulation(currentPrice, 0.015, 0.0004, 7, 3000);
-  const mc30d = runMonteCarloSimulation(currentPrice, 0.015, 0.0004, 30, 3000);
+  // Monte Carlo confidence intervals, parameterised by this ETF's realised
+  // volatility and drift rather than a flat assumed constant.
+  const { dailyVolatility, dailyDrift } = realisedStats(closes);
+  const mc7d = runMonteCarloSimulation(currentPrice, dailyVolatility, dailyDrift, 7, 3000);
+  const mc30d = runMonteCarloSimulation(currentPrice, dailyVolatility, dailyDrift, 30, 3000);
+
+  /**
+   * Confidence is the measured out-of-sample directional hit rate, adjusted down
+   * for horizon and for lack of predictive skill. The old code floored every
+   * horizon at 62-68% and hardcoded 76/72 for 90D/1Y, so the UI reported numbers
+   * the model never earned.
+   */
+  const baseConfidence = Math.round(Math.max(0, Math.min(100, directionalAccuracy)));
+  const skillPenalty = r2 <= 0 ? 15 : r2 < 0.1 ? 8 : 0;
+  const confidenceFor = decay => Math.max(35, Math.round(baseConfidence * decay) - skillPenalty);
+
+  const signalFor = (target, bullEdge, bearEdge, bullLabel = 'BULLISH') =>
+    target > currentPrice * bullEdge ? bullLabel : target < currentPrice * bearEdge ? 'BEARISH' : 'NEUTRAL';
 
   const predictions = {
     '1D': {
@@ -395,8 +468,8 @@ export function trainFullTataSilverModel() {
       expectedMovePct: parseFloat((predRet1d * 100).toFixed(2)),
       upperBound: parseFloat((target1d + 1.2 * rmse).toFixed(2)),
       lowerBound: parseFloat((target1d - 1.2 * rmse).toFixed(2)),
-      confidence: Math.min(92, Math.max(68, Math.round(directionalAccuracy))),
-      signal: target1d > currentPrice + 0.15 ? 'BULLISH' : target1d < currentPrice - 0.15 ? 'BEARISH' : 'NEUTRAL',
+      confidence: confidenceFor(1),
+      signal: signalFor(target1d, 1.007, 0.993),
       horizon: 'Next Trading Session (1 Day)'
     },
     '7D': {
@@ -404,8 +477,8 @@ export function trainFullTataSilverModel() {
       expectedMovePct: parseFloat((predRet7d * 100).toFixed(2)),
       upperBound: mc7d.upper95,
       lowerBound: mc7d.lower95,
-      confidence: Math.min(88, Math.max(65, Math.round(directionalAccuracy * 0.96))),
-      signal: target7d > currentPrice * 1.006 ? 'BULLISH' : target7d < currentPrice * 0.994 ? 'BEARISH' : 'NEUTRAL',
+      confidence: confidenceFor(0.96),
+      signal: signalFor(target7d, 1.006, 0.994),
       horizon: '1 Week Swing (7 Days)'
     },
     '30D': {
@@ -413,8 +486,8 @@ export function trainFullTataSilverModel() {
       expectedMovePct: parseFloat((predRet30d * 100).toFixed(2)),
       upperBound: mc30d.upper95,
       lowerBound: mc30d.lower95,
-      confidence: Math.min(85, Math.max(62, Math.round(directionalAccuracy * 0.92))),
-      signal: target30d > currentPrice * 1.015 ? 'BULLISH' : target30d < currentPrice * 0.985 ? 'BEARISH' : 'NEUTRAL',
+      confidence: confidenceFor(0.92),
+      signal: signalFor(target30d, 1.015, 0.985),
       horizon: '1 Month Outlook (30 Days)'
     },
     '90D': {
@@ -422,8 +495,8 @@ export function trainFullTataSilverModel() {
       expectedMovePct: parseFloat(((target90d - currentPrice) / currentPrice * 100).toFixed(2)),
       upperBound: parseFloat((target90d * 1.09).toFixed(2)),
       lowerBound: parseFloat((target90d * 0.91).toFixed(2)),
-      confidence: 76,
-      signal: target90d > currentPrice * 1.03 ? 'BULLISH' : target90d < currentPrice * 0.97 ? 'BEARISH' : 'NEUTRAL',
+      confidence: confidenceFor(0.75),
+      signal: signalFor(target90d, 1.03, 0.97),
       horizon: 'Quarterly Outlook (90 Days)'
     },
     '1Y': {
@@ -431,8 +504,8 @@ export function trainFullTataSilverModel() {
       expectedMovePct: parseFloat(((target1y - currentPrice) / currentPrice * 100).toFixed(2)),
       upperBound: parseFloat((target1y * 1.18).toFixed(2)),
       lowerBound: parseFloat((target1y * 0.85).toFixed(2)),
-      confidence: 72,
-      signal: target1y > currentPrice * 1.06 ? 'STRONG BULLISH' : 'MODERATE BULLISH',
+      confidence: confidenceFor(0.6),
+      signal: signalFor(target1y, 1.06, 0.94, 'STRONG BULLISH'),
       horizon: '1-Year Structural Macro Projection'
     }
   };
@@ -460,7 +533,7 @@ export function trainFullTataSilverModel() {
 
   return {
     metrics: {
-      totalDays: DATASET_STATS.totalDays,
+      totalDays: stats.totalDays,
       trainingDays: splitIdx,
       testingDays: nTest,
       r2Score: r2,
@@ -468,7 +541,14 @@ export function trainFullTataSilverModel() {
       rmse: `₹${rmse}`,
       mae: `₹${mae}`,
       mape: `${mape}%`,
-      cagr: `${DATASET_STATS.cagr}%`
+      cagr: `${stats.cagr}%`,
+      dataRange: `${stats.startDate} → ${stats.endDate}`,
+      /**
+       * False when out-of-sample R² is at or below zero, i.e. the model does not
+       * beat predicting the historical mean. The UI uses this to warn instead of
+       * presenting the projections as reliable.
+       */
+      hasPredictiveSkill: r2 > 0
     },
     currentPrice,
     predictions,
@@ -478,6 +558,7 @@ export function trainFullTataSilverModel() {
     actualPrices: closes,
     fittedHistory,
     latestDataPoint: fullData[fullData.length - 1],
+    provenance,
     trainedAt: new Date().toISOString()
   };
 }

@@ -1,3 +1,6 @@
+import { fetchResilient } from '../utils/fetchResilient.js';
+import { loadSnapshot, getQuote, getHistory } from './priceSnapshot.js';
+
 const YAHOO_FINANCE_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.DEV)
   ? '/yahoo/v8/finance/chart'
   : 'https://query2.finance.yahoo.com/v8/finance/chart';
@@ -21,11 +24,13 @@ const SYMBOLS = {
   tataGoldETF: 'TATAGOLD.NS'
 };
 
-import { fetchResilient } from '../utils/fetchResilient.js';
-import { FIVE_YEAR_SILVER_DATA } from '../data/fiveYearSilverData.js';
-
 export const YAHOO_CHART_BASE = YAHOO_FINANCE_BASE;
 
+/**
+ * Live Yahoo is only reachable in dev (via the Vite proxy). In production the
+ * browser is blocked by CORS, so the CI snapshot is the primary source and this
+ * is only a best-effort secondary. Returns null rather than inventing numbers.
+ */
 async function fetchYahooData(symbol, range = '1d', interval = '5m') {
   try {
     const url = `${YAHOO_FINANCE_BASE}/${encodeURIComponent(symbol).replace(/%3D/g, '=')}?range=${range}&interval=${interval}`;
@@ -34,34 +39,92 @@ async function fetchYahooData(symbol, range = '1d', interval = '5m') {
     const data = await response.json();
     return data.chart?.result?.[0] || null;
   } catch (error) {
-    console.error(`Failed to fetch ${symbol}:`, error);
+    console.warn(`Live fetch unavailable for ${symbol}:`, error?.message || error);
     return null;
   }
 }
 
-function formatQuote(result, name, sector) {
-  if (!result) return null;
-  const meta = result.meta;
-  const currentPrice = meta.regularMarketPrice;
-  const previousClose = meta.chartPreviousClose || meta.previousClose;
-  const change = currentPrice - previousClose;
-  const changePercent = (change / previousClose) * 100;
+/**
+ * Yahoo's `chartPreviousClose` is the close *before the requested range*, so on
+ * anything wider than intraday it can be weeks stale and must not be used as
+ * "yesterday's close". `previousClose` is absent on the chart endpoint, so the
+ * real prior close is derived from the daily series instead.
+ */
+function resolvePrevClose(result, { range, interval } = {}) {
+  const meta = result?.meta;
+  if (!meta) return null;
+  if (Number.isFinite(meta.previousClose)) return meta.previousClose;
+
+  const isIntraday = /m$/.test(interval || '') || range === '1d';
+  if (isIntraday && Number.isFinite(meta.chartPreviousClose)) return meta.chartPreviousClose;
+
+  const closes = result.indicators?.quote?.[0]?.close || [];
+  const usable = closes.filter(Number.isFinite);
+  if (usable.length >= 2) return usable[usable.length - 2];
+  if (usable.length === 1) return usable[0];
+  return Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : null;
+}
+
+function toQuote(symbol, result, name, sector) {
+  const price = result?.meta?.regularMarketPrice;
+  if (!Number.isFinite(price)) return null;
+
+  const prevClose = resolvePrevClose(result);
+  const change = prevClose != null ? price - prevClose : null;
+
   return {
-    name,
-    value: currentPrice,
-    change: parseFloat(change.toFixed(2)),
-    changePercent: parseFloat(changePercent.toFixed(2)),
-    dayHigh: meta.regularMarketDayHigh || currentPrice,
-    dayLow: meta.regularMarketDayLow || currentPrice,
-    prevClose: previousClose,
-    volume: meta.regularMarketVolume ? formatVolume(meta.regularMarketVolume) : 'N/A',
+    symbol,
+    name: result.meta.longName || result.meta.shortName || name,
+    value: price,
+    price,
+    change: change != null ? parseFloat(change.toFixed(2)) : null,
+    changePercent: change != null && prevClose ? parseFloat(((change / prevClose) * 100).toFixed(2)) : null,
+    dayHigh: result.meta.regularMarketDayHigh || price,
+    dayLow: result.meta.regularMarketDayLow || price,
+    prevClose,
+    volume: formatVolume(result.meta.regularMarketVolume),
+    currency: result.meta.currency || 'USD',
     sector,
-    currency: meta.currency || 'USD',
+    source: 'Yahoo Finance',
     lastUpdated: new Date().toISOString()
   };
 }
 
+/**
+ * Quote lookup order: CI snapshot, then a live fetch. Never fabricates.
+ */
+async function getQuoteWithFallback(symbol, { range = '1d', interval = '5m', name, sector } = {}) {
+  await loadSnapshot();
+
+  const snapshotted = getQuote(symbol);
+  if (snapshotted) {
+    const prevClose = snapshotted.prevClose;
+    return {
+      symbol,
+      name: name || snapshotted.name,
+      value: snapshotted.price,
+      price: snapshotted.price,
+      change: snapshotted.change,
+      changePercent: snapshotted.changePercent,
+      dayHigh: snapshotted.dayHigh,
+      dayLow: snapshotted.dayLow,
+      prevClose,
+      volume: formatVolume(snapshotted.volume),
+      currency: snapshotted.currency || 'USD',
+      sector,
+      source: snapshotted.source,
+      asOf: snapshotted.asOf,
+      marketTime: snapshotted.marketTime,
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  const result = await fetchYahooData(symbol, range, interval);
+  return result ? toQuote(symbol, result, name, sector) : null;
+}
+
 function formatVolume(vol) {
+  if (!Number.isFinite(vol)) return 'N/A';
   if (vol >= 1e9) return (vol / 1e9).toFixed(2) + 'B';
   if (vol >= 1e6) return (vol / 1e6).toFixed(2) + 'M';
   if (vol >= 1e3) return (vol / 1e3).toFixed(2) + 'K';
@@ -69,169 +132,173 @@ function formatVolume(vol) {
 }
 
 export async function fetchMarketIndices() {
-  const [nifty, sensex, bankNifty, niftyIT, niftyPharma] = await Promise.all([
-    fetchYahooData(SYMBOLS.nifty50),
-    fetchYahooData(SYMBOLS.sensex),
-    fetchYahooData(SYMBOLS.bankNifty),
-    fetchYahooData(SYMBOLS.niftyIT),
-    fetchYahooData(SYMBOLS.niftyPharma)
-  ]);
-  return [
-    formatQuote(nifty, 'NIFTY 50', 'Benchmark'),
-    formatQuote(sensex, 'SENSEX', 'Benchmark'),
-    formatQuote(bankNifty, 'BANK NIFTY', 'Banking'),
-    formatQuote(niftyIT, 'NIFTY IT', 'IT'),
-    formatQuote(niftyPharma, 'NIFTY PHARMA', 'Pharma')
-  ].filter(Boolean);
+  const wanted = [
+    [SYMBOLS.nifty50, 'NIFTY 50', 'Benchmark'],
+    [SYMBOLS.sensex, 'SENSEX', 'Benchmark'],
+    [SYMBOLS.bankNifty, 'BANK NIFTY', 'Banking'],
+    [SYMBOLS.niftyIT, 'NIFTY IT', 'IT'],
+    [SYMBOLS.niftyPharma, 'NIFTY PHARMA', 'Pharma']
+  ];
+
+  const quotes = await Promise.all(wanted.map(([symbol, name, sector]) => getQuoteWithFallback(symbol, { name, sector })));
+  return quotes.filter(Boolean);
 }
 
 export async function fetchCommodityPrices() {
-  const [gold, silver, crudeOil, brentCrude] = await Promise.all([
-    fetchYahooData(SYMBOLS.gold),
-    fetchYahooData(SYMBOLS.silver),
-    fetchYahooData(SYMBOLS.crudeOil),
-    fetchYahooData(SYMBOLS.brentCrude)
-  ]);
-  const toCommodity = (result, unit, type) => {
-    if (!result) return null;
-    const prev = result.meta.chartPreviousClose || result.meta.previousClose;
-    const cur = result.meta.regularMarketPrice;
-    const change = cur - prev;
-    const changePercent = prev ? (change / prev) * 100 : 0;
-    return {
-      price: cur,
-      currency: result.meta.currency || 'USD',
-      change: parseFloat(change.toFixed(2)),
-      changePercent: parseFloat(changePercent.toFixed(2)),
-      prevClose: prev,
-      unit,
-      type
-    };
-  };
-  return {
-    gold: toCommodity(gold, 'per oz', 'Gold'),
-    silver: toCommodity(silver, 'per oz', 'Silver'),
-    crudeOil: toCommodity(crudeOil, 'per barrel', 'WTI'),
-    brentCrude: toCommodity(brentCrude, 'per barrel', 'Brent')
-  };
+  const wanted = [
+    [SYMBOLS.gold, 'per oz', 'Gold'],
+    [SYMBOLS.silver, 'per oz', 'Silver'],
+    [SYMBOLS.crudeOil, 'per barrel', 'WTI'],
+    [SYMBOLS.brentCrude, 'per barrel', 'Brent']
+  ];
+
+  const quotes = await Promise.all(wanted.map(([symbol, , type]) => getQuoteWithFallback(symbol, { name: type, sector: type })));
+
+  const empty = { price: null, currency: null, change: null, changePercent: null, prevClose: null, unit: null, type: null };
+  const result = {};
+
+  wanted.forEach(([, unit, type], i) => {
+    const quote = quotes[i];
+    result[type === 'WTI' ? 'crudeOil' : type === 'Brent' ? 'brentCrude' : type.toLowerCase()] = quote
+      ? {
+          price: quote.price,
+          currency: quote.currency,
+          change: quote.change,
+          changePercent: quote.changePercent,
+          prevClose: quote.prevClose,
+          unit,
+          type,
+          source: quote.source,
+          asOf: quote.asOf
+        }
+      : { ...empty, unit, type };
+  });
+
+  return result;
 }
 
 export async function fetchCurrencyRates() {
-  const usdInr = await fetchYahooData(SYMBOLS.usdInr);
+  const quote = await getQuoteWithFallback(SYMBOLS.usdInr, { name: 'USD/INR' });
   return {
-    usdInr: usdInr ? {
-      rate: usdInr.meta.regularMarketPrice,
-      change: usdInr.meta.regularMarketPrice - (usdInr.meta.chartPreviousClose || usdInr.meta.previousClose),
-      lastUpdated: new Date().toISOString()
-    } : null
+    usdInr: quote
+      ? {
+          rate: quote.price,
+          change: quote.change,
+          changePercent: quote.changePercent,
+          source: quote.source,
+          asOf: quote.asOf,
+          lastUpdated: quote.lastUpdated
+        }
+      : null
   };
 }
 
 export async function fetchMetalETFs() {
-  const [goldETF, silverETF] = await Promise.all([
-    fetchYahooData(SYMBOLS.goldETF),
-    fetchYahooData(SYMBOLS.silverETF)
-  ]);
-  const toETF = (result, symbol, name) => {
-    if (!result) return null;
-    const prev = result.meta.chartPreviousClose || result.meta.previousClose;
-    return {
-      symbol,
-      name,
-      price: result.meta.regularMarketPrice,
-      change: result.meta.regularMarketPrice - prev,
-      changePercent: ((result.meta.regularMarketPrice - prev) / prev) * 100
-    };
-  };
+  const wanted = [
+    [SYMBOLS.goldETF, 'GLD', 'SPDR Gold Shares'],
+    [SYMBOLS.silverETF, 'SLV', 'iShares Silver Trust']
+  ];
+
+  const quotes = await Promise.all(wanted.map(([symbol, , name]) => getQuoteWithFallback(symbol, { name })));
   return {
-    goldETF: toETF(goldETF, 'GLD', 'SPDR Gold Shares'),
-    silverETF: toETF(silverETF, 'SLV', 'iShares Silver Trust')
+    goldETF: toETF(quotes[0], 'GLD', 'SPDR Gold Shares'),
+    silverETF: toETF(quotes[1], 'SLV', 'iShares Silver Trust')
+  };
+}
+
+function toETF(quote, symbol, name) {
+  if (!quote) return null;
+  return {
+    symbol,
+    name,
+    price: quote.price,
+    change: quote.change,
+    changePercent: quote.changePercent,
+    currency: quote.currency,
+    source: quote.source,
+    asOf: quote.asOf
   };
 }
 
 export async function fetchIndianETFs() {
-  const [goldETF, silverETF, tataSilver] = await Promise.all([
-    fetchYahooData(SYMBOLS.goldETFIndia),
-    fetchYahooData(SYMBOLS.silverETFIndia),
-    fetchYahooData(SYMBOLS.tataSilverETF)
-  ]);
-  const toETF = (result, symbol, name) => {
-    if (!result) return null;
-    const prev = result.meta.chartPreviousClose || result.meta.previousClose;
-    return {
-      symbol,
-      name,
-      price: result.meta.regularMarketPrice,
-      change: result.meta.regularMarketPrice - prev,
-      changePercent: ((result.meta.regularMarketPrice - prev) / prev) * 100,
-      currency: result.meta.currency || 'INR'
-    };
-  };
+  const wanted = [
+    [SYMBOLS.goldETFIndia, 'GOLDBEES.NS', 'Nippon India Gold BeES'],
+    [SYMBOLS.silverETFIndia, 'SILVERBEES.NS', 'Nippon India Silver BeES'],
+    [SYMBOLS.tataSilverETF, 'TATSILV.NS', 'Tata Silver ETF'],
+    [SYMBOLS.tataGoldETF, 'TATAGOLD.NS', 'Tata Gold ETF']
+  ];
+
+  const quotes = await Promise.all(wanted.map(([symbol, , name]) => getQuoteWithFallback(symbol, { name })));
+
   return {
-    goldETFIndia: toETF(goldETF, 'GOLDBEES.NS', 'Nippon India Gold BeES'),
-    silverETFIndia: toETF(silverETF, 'SILVERBEES.NS', 'Nippon India Silver BeES'),
-    tataSilverETF: toETF(tataSilver, 'TATSILV.NS', 'Tata Silver ETF')
+    goldETFIndia: toETF(quotes[0], 'GOLDBEES.NS', 'Nippon India Gold BeES'),
+    silverETFIndia: toETF(quotes[1], 'SILVERBEES.NS', 'Nippon India Silver BeES'),
+    tataSilverETF: toETF(quotes[2], 'TATSILV.NS', 'Tata Silver ETF'),
+    tataGoldETF: toETF(quotes[3], 'TATAGOLD.NS', 'Tata Gold ETF')
   };
 }
 
+/**
+ * Real daily history. The old implementation invented a random walk whenever
+ * Yahoo was unreachable, which is how the UI ended up quoting prices that never
+ * existed. Now an unavailable series is simply an empty one.
+ */
 export async function fetchHistoricalData(symbol, range = '1mo', interval = '1d') {
+  await loadSnapshot();
+
+  const snapshotRows = getHistory(symbol);
+  if (snapshotRows.length > 0) return sliceToRange(snapshotRows, range, interval);
+
   const result = await fetchYahooData(symbol, range, interval);
-  if (!result || !result.indicators) return generateFallbackData(symbol, range);
+  if (!result?.indicators) return [];
+
   const timestamps = result.timestamp || [];
-  const quotes = result.indicators.quote[0];
-  const data = timestamps.map((time, i) => ({
-    date: new Date(time * 1000),
-    open: quotes.open[i],
-    high: quotes.high[i],
-    low: quotes.low[i],
-    close: quotes.close[i],
-    volume: quotes.volume[i]
-  })).filter(q => q.close !== null);
-  return data.length > 0 ? data : generateFallbackData(symbol, range);
+  const quotes = result.indicators.quote?.[0] || {};
+
+  const rows = timestamps
+    .map((time, i) => ({
+      date: new Date(time * 1000),
+      open: quotes.open?.[i],
+      high: quotes.high?.[i],
+      low: quotes.low?.[i],
+      close: quotes.close?.[i],
+      volume: quotes.volume?.[i]
+    }))
+    .filter(row => Number.isFinite(row.close));
+
+  return rows.length > 0 ? rows : [];
 }
 
-function generateFallbackData(symbol, range) {
-  if (symbol === 'TATSILV.NS' || symbol === 'SILVERBEES.NS' || symbol === 'SI=F') {
-    const days = range === '5d' ? 5 : range === '1mo' ? 22 : range === '3mo' ? 66 : range === '6mo' ? 130 : range === '1y' ? 252 : range === '3y' ? 756 : FIVE_YEAR_SILVER_DATA.length;
-    const slice = FIVE_YEAR_SILVER_DATA.slice(Math.max(0, FIVE_YEAR_SILVER_DATA.length - days));
-    return slice.map(d => ({
-      date: new Date(d.date),
-      open: symbol === 'SI=F' ? d.spotSilver : d.open,
-      high: symbol === 'SI=F' ? d.spotSilver * 1.01 : d.high,
-      low: symbol === 'SI=F' ? d.spotSilver * 0.99 : d.low,
-      close: symbol === 'SI=F' ? d.spotSilver : d.close,
-      volume: d.volume
-    }));
+/**
+ * The snapshot stores one long daily series per symbol; chart timeframes ask
+ * for different ranges, so trim to match rather than refetching.
+ */
+function sliceToRange(rows, range, interval) {
+  const counts = {
+    '5d': 5,
+    '1d': 1,
+    '1mo': 22,
+    '3mo': 66,
+    '6mo': 130,
+    '1y': 252,
+    '2y': 504,
+    '3y': 756,
+    '5y': rows.length,
+    max: rows.length
+  };
+
+  if (/^\d+(d|wk|mo|y)$/.test(range)) {
+    const match = range.match(/^(\d+)(d|wk|mo|y)$/);
+    const amount = Number(match[1]);
+    const unitDays = { d: 1, wk: 7, mo: 30, y: 365 }[match[2]];
+    return rows.slice(-Math.min(rows.length, Math.round(amount * unitDays)));
   }
 
-  const now = new Date();
-  const days = range === '5d' ? 5 : range === '1mo' ? 30 : range === '3mo' ? 90 : range === '6mo' ? 180 : range === '1y' ? 365 : range === '3y' ? 1095 : 1825;
-  const priceMap = {
-    'GC=F': 3385, 'SI=F': 38.5, 'CL=F': 62, 'BZ=F': 66,
-    'USDINR=X': 87.5,
-    'GLD': 310, 'SLV': 35.5,
-    'GOLDBEES.NS': 88, 'SILVERBEES.NS': 118, 'TATSILV.NS': 120, 'TATAGOLD.NS': 88
-  };
-  const basePrice = priceMap[symbol] || 100;
-  const volatility = 0.012;
-  const data = [];
-  let price = basePrice * (1 + (Math.random() - 0.5) * 0.02);
-  for (let i = 0; i < days; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - (days - i));
-    const change = (Math.random() - 0.48) * volatility * price;
-    price += change;
-    const open = price - change * 0.3;
-    const high = Math.max(price, open) + Math.random() * volatility * price * 0.5;
-    const low = Math.min(price, open) - Math.random() * volatility * price * 0.5;
-    data.push({
-      date,
-      open: parseFloat(open.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      close: parseFloat(price.toFixed(2)),
-      volume: Math.floor(Math.random() * 100000) + 50000
-    });
-  }
-  return data;
+  const wanted = counts[range] ?? counts['1mo'];
+
+  // Sub-daily intervals need finer bars than the daily snapshot provides;
+  // return the tail we do have rather than pretending to be intraday.
+  if (/m$/.test(interval) && wanted <= 5) return rows.slice(-Math.min(rows.length, 5));
+
+  return rows.slice(-Math.min(rows.length, wanted));
 }

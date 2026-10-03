@@ -3,6 +3,12 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [master]
+  # Refresh the baked-in market snapshot through NSE hours (08:30-15:30 IST).
+  # Yahoo Finance and Groww send no CORS headers, so a static bundle cannot
+  # refresh prices on its own — this is what keeps them from going stale.
+  schedule:
+    - cron: '5,25,45 4-10 * * 1-5'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,6 +29,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Yahoo/Groww are blocked by CORS in the browser, so prices are pulled
+      # here and baked into public/prices.json before the bundle is built.
+      - name: Fetch market snapshot
+        run: npm run fetch:prices
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
