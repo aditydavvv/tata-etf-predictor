@@ -378,14 +378,14 @@ export default function DashboardPage() {
               <StatsCard 
                 title="Total ETFs" 
                 value={filteredEtfs.length.toString()} 
-                change={liveMode ? `${liveStats.totalEtfs} live` : "+5 this week"}
+                change={liveMode ? `${liveStats.totalEtfs} live` : undefined}
                 subtitle={liveMode ? "Active in market" : "Cached data"}
                 icon={BarChart3}
               />
               <StatsCard 
                 title={liveMode ? "Avg Price" : "Avg NAV"} 
                 value={liveMode ? formatPrice(liveStats.avgPrice) : formatPrice(filteredEtfs.reduce((sum, etf) => sum + (parseFloat(etf.latestNav || etf.ltP || 0) || 0), 0) / Math.max(filteredEtfs.length, 1))}
-                change={liveMode ? `${liveStats.avgChange >= 0 ? '+' : ''}${formatPercent(liveStats.avgChange)}` : "+2.3% today"}
+                change={liveMode ? `${liveStats.avgChange >= 0 ? '+' : ''}${formatPercent(liveStats.avgChange)}` : undefined}
                 subtitle={liveMode ? "Market average" : "Cached average"}
                 icon={TrendingUp}
               />

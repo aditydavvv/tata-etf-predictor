@@ -33,21 +33,8 @@ const ETF52WeekStats = ({ etf, liveData }) => {
   const perChange365d = data?.perChange365d;
   const perChange30d = data?.perChange30d;
   
-  // If we don't have 52-week data but have current price, generate reasonable estimates
-  if (currentPrice && (!weekHigh || !weekLow)) {
-    // Generate reasonable 52-week range based on current price
-    // This is a fallback when real 52-week data is not available
-    const volatility = 0.15; // 15% typical volatility for ETFs
-    weekHigh = weekHigh || (currentPrice * (1 + volatility * Math.random()));
-    weekLow = weekLow || (currentPrice * (1 - volatility * Math.random()));
-    
-    // Ensure high is higher than low
-    if (weekHigh <= weekLow) {
-      const temp = weekHigh;
-      weekHigh = weekLow;
-      weekLow = temp;
-    }
-  }
+  // Never fabricate figures. If real 52-week data is missing we show a clear
+  // "not available" state below instead of inventing random high/low values.
   
   // Calculate fall from high
   const fallFromHigh = weekHigh && currentPrice ? 

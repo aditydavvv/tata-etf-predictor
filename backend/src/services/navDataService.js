@@ -1,26 +1,19 @@
 const fs = require('fs/promises');
-const path = require('path');
-const { getCategorizedEtfList } = require('./amfiNavService');
+const {
+  getCategorizedEtfList,
+  getTodayNavFilePath,
+  getTodayDateString,
+  hasFunds,
+  NAV_DATA_DIR
+} = require('./amfiNavService');
 const EtfNavCategorized = require('../models/EtfNavCategorized');
 const connectDB = require('../db');
 const HighLiquidityEtf = require('../models/HighLiquidityEtf');
 const HistoricalNav = require('../models/HistoricalNav');
 const axios = require('axios');
 
-const NAV_DATA_DIR = path.join(__dirname, '..', '..', 'nav_data');
 let navCache = null;
 let navCacheDate = null;
-
-// Ensure nav_data directory exists
-async function ensureNavDataDir() {
-  await fs.mkdir(NAV_DATA_DIR, { recursive: true });
-}
-
-// Get today's NAV file path
-function getTodayNavFilePath() {
-  const today = new Date().toISOString().slice(0, 10);
-  return path.join(NAV_DATA_DIR, `etf_navs_categorized_${today}.json`);
-}
 
 // Save categorized ETF NAVs to MongoDB
 async function saveCategorizedNavsToMongo(categorized) {
@@ -38,39 +31,59 @@ async function saveCategorizedNavsToMongo(categorized) {
   await EtfNavCategorized.insertMany(docs);
 }
 
-// Robustly ensure NAV data is up-to-date in memory and on disk, with retries
+// Ensure we have today's categorized NAV data in memory.
+// getCategorizedEtfList owns the on-disk cache: it reads today's file, and only
+// fetches/writes when today's data is missing or empty. We never reuse a file
+// from a previous day, which is what previously caused stale numbers.
 async function ensureNavData() {
-  const today = new Date().toISOString().slice(0, 10);
-  if (navCache && navCacheDate === today) return navCache;
-  await ensureNavDataDir();
+  const today = getTodayDateString();
+  if (navCache && navCacheDate === today && hasFunds(navCache)) return navCache;
+
   const navFilePath = getTodayNavFilePath();
 
-  // Try to read the file, or fetch and save if missing/invalid, with retries
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const fileData = await fs.readFile(navFilePath, 'utf8');
-      navCache = JSON.parse(fileData).categories;
+  // Prefer today's on-disk cache.
+  try {
+    const fileData = JSON.parse(await fs.readFile(navFilePath, 'utf8'));
+    const categories = fileData.categories || fileData;
+    if (hasFunds(categories)) {
+      navCache = categories;
       navCacheDate = today;
       return navCache;
-    } catch (err) {
-      console.warn(`[Attempt ${attempt}] NAV file missing or invalid, fetching from AMFI...`);
-      try {
-        const categorized = await getCategorizedEtfList();
-        if (categorized.error) throw new Error(categorized.error);
-        await fs.writeFile(navFilePath, JSON.stringify({ categories: categorized }, null, 4));
-        navCache = categorized;
-        navCacheDate = today;
-        // Save to MongoDB only if new data was fetched and written
-        await saveCategorizedNavsToMongo(categorized);
-        return navCache;
-      } catch (fetchErr) {
-        console.error(`[Attempt ${attempt}] Failed to fetch/categorize/save NAV data:`, fetchErr.message);
-        if (attempt === 3) throw new Error('Failed to fetch and save NAV data after 3 attempts.');
-        // Wait 2 seconds before retrying
-        await new Promise(res => setTimeout(res, 2000));
-      }
     }
+    console.warn('[NAV] Today\'s cache contains no funds, refetching...');
+  } catch (err) {
+    // No cache for today yet – will fetch below.
   }
+
+  // Fetch fresh data (getCategorizedEtfList writes today's cache on success).
+  const categorized = await getCategorizedEtfList();
+  if (!categorized || categorized.error) {
+    throw new Error(categorized?.error || 'Failed to fetch and categorize NAV data.');
+  }
+  if (!hasFunds(categorized)) {
+    throw new Error('Fetched NAV data contained no ETF funds.');
+  }
+
+  navCache = categorized;
+  navCacheDate = today;
+  await saveCategorizedNavsToMongo(categorized);
+  return navCache;
+}
+
+// Force a fresh fetch from AMFI, write today's cache and persist to MongoDB.
+// Used by POST /api/fetch-navs.
+async function fetchAndSaveNavData() {
+  const categorized = await getCategorizedEtfList({ force: true });
+  if (!categorized || categorized.error) {
+    return { error: categorized?.error || 'Failed to fetch NAV data.' };
+  }
+  if (!hasFunds(categorized)) {
+    return { error: 'Fetched NAV data contained no ETF funds.' };
+  }
+  navCache = categorized;
+  navCacheDate = getTodayDateString();
+  await saveCategorizedNavsToMongo(categorized);
+  return { file: getTodayNavFilePath() };
 }
 
 // Get all available categories (key and label)
@@ -118,9 +131,11 @@ async function fetchAndSaveHistoricalNav(schemeId) {
 }
 
 module.exports = {
+  NAV_DATA_DIR,
   ensureNavData,
+  fetchAndSaveNavData,
   getAllCategories,
   getEtfsByCategory,
   getAllHighLiquiditySchemeIds,
   fetchAndSaveHistoricalNav
-}; 
+};

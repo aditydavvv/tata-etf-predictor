@@ -2,7 +2,10 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
-const NAV_DATA_DIR = path.join(__dirname, '..', 'nav_data');
+// Keep this in sync with navDataService.NAV_DATA_DIR so the cache written by
+// the startup sync is the same cache that is read here. Previously these two
+// pointed at different folders, so a stale file was served forever.
+const NAV_DATA_DIR = path.join(__dirname, '..', '..', 'nav_data');
 const AMFI_NAV_URL = 'https://www.amfiindia.com/spages/NAVAll.txt';
 
 const INITIAL_CATEGORIES = {
@@ -158,6 +161,15 @@ const INITIAL_CATEGORIES = {
     }
 };
 
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getTodayNavFilePath() {
+  return path.join(NAV_DATA_DIR, `etf_navs_categorized_${getTodayDateString()}.json`);
+}
+
+// Newest cached file on disk (used only as an explicit last-resort fallback).
 function getLatestNavFile() {
   if (!fs.existsSync(NAV_DATA_DIR)) return null;
   const files = fs.readdirSync(NAV_DATA_DIR)
@@ -166,9 +178,16 @@ function getLatestNavFile() {
   return files.length > 0 ? path.join(NAV_DATA_DIR, files[files.length - 1]) : null;
 }
 
+// A cache is only usable if it actually contains funds.
+function hasFunds(categories) {
+  return !!categories &&
+    typeof categories === 'object' &&
+    Object.values(categories).some(cat => cat && Array.isArray(cat.funds) && cat.funds.length > 0);
+}
+
 async function fetchAmfiNavTxt() {
   try {
-    const response = await axios.get(AMFI_NAV_URL);
+    const response = await axios.get(AMFI_NAV_URL, { timeout: 20000 });
     return response.data;
   } catch (err) {
     console.error('Failed to fetch NAVAll.txt from AMFI:', err.message);
@@ -176,10 +195,59 @@ async function fetchAmfiNavTxt() {
   }
 }
 
+// Pick one growth row per scheme, preferring Direct plans.
+// AMFI changed NAVAll.txt from a 6-column layout (plan/option embedded in the
+// scheme name) to an 8-column layout (dedicated Plan and Option columns), so we
+// handle both instead of assuming a fixed field count.
+function selectLatestGrowthEtfs(records) {
+  const etfKeywords = ['ETF', 'BEES', 'EXCHANGE TRADED FUND'];
+  const chosen = new Map();
+
+  for (const record of records) {
+    const rawName = (record['Scheme Name'] || '').trim();
+    const name = rawName.toUpperCase();
+    if (!etfKeywords.some(keyword => name.includes(keyword))) continue;
+
+    const hasPlanColumns = Object.prototype.hasOwnProperty.call(record, 'Plan') ||
+      Object.prototype.hasOwnProperty.call(record, 'Option');
+
+    let rank;
+    let dedupeKey;
+
+    if (hasPlanColumns) {
+      const plan = (record['Plan'] || '').toUpperCase();
+      const option = (record['Option'] || '').toUpperCase();
+
+      // Keep growth options only; drop IDCW / dividend / payout variants.
+      if (option && !option.includes('GROWTH')) continue;
+      if (/IDCW|DIVIDEND|PAYOUT|REINVEST|BONUS/.test(option)) continue;
+
+      rank = plan.includes('DIRECT') ? 0 : plan.includes('REGULAR') ? 2 : 1;
+      dedupeKey = name;
+    } else {
+      // Legacy format: plan/option were part of the scheme name.
+      if (/REGULAR|IDCW|DIVIDEND|PAYOUT|REINVEST|BONUS/.test(name)) continue;
+      rank = name.includes('DIRECT') ? 0 : 1;
+      dedupeKey = name
+        .replace(/\b(DIRECT|REGULAR)\s*PLAN\b/g, '')
+        .replace(/\b(GROWTH|IDCW|DIVIDEND|PAYOUT|REINVEST|BONUS)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    const existing = chosen.get(dedupeKey);
+    if (!existing || rank < existing.rank) {
+      chosen.set(dedupeKey, { rank, record });
+    }
+  }
+
+  return Array.from(chosen.values()).map(entry => entry.record);
+}
+
 function parseEtfFromRawTxt(rawTxt) {
   try {
     const { parse } = require('csv-parse/sync');
-    const lines = rawTxt.trim().split('\n');
+    const lines = rawTxt.replace(/\r/g, '').split('\n');
     // Step 1: Find the actual header index
     const headerIndex = lines.findIndex(line =>
       line.startsWith('Scheme Code;')
@@ -187,10 +255,13 @@ function parseEtfFromRawTxt(rawTxt) {
     if (headerIndex === -1) {
       throw new Error('No valid header line found in AMFI response.');
     }
-    // Step 2: Slice off only the data after header
+    // Step 2: Derive the expected field count from the header itself.
+    // AMFI can and does add/remove columns, so hardcoding a number here is what
+    // silently broke the dashboard before.
+    const expectedFields = lines[headerIndex].split(';').length;
     const validData = lines.slice(headerIndex).filter(line => {
       // Filter out empty lines and AMC headings like "Axis Mutual Fund"
-      return line.includes(';') && line.split(';').length === 6;
+      return line.includes(';') && line.split(';').length === expectedFields;
     }).join('\n');
     // Step 3: Parse using csv-parse
     const records = parse(validData, {
@@ -199,18 +270,8 @@ function parseEtfFromRawTxt(rawTxt) {
       skip_empty_lines: true,
       trim: true
     });
-    // Step 4: Filter only ETFs
-    const etfKeywords = ['ETF', 'BEES', 'EXCHANGE TRADED FUND'];
-    let etfs = records.filter(record => {
-      const name = (record['Scheme Name'] || '').toUpperCase();
-      return etfKeywords.some(keyword => name.includes(keyword));
-    });
-    // Step 5: Filter out ETFs with 'Regular' or 'IDCW' in the name
-    etfs = etfs.filter(record => {
-      const name = (record['Scheme Name'] || '').toUpperCase();
-      return !name.includes('REGULAR') && !name.includes('IDCW');
-    });
-    return etfs;
+    // Step 4: Keep only ETFs, one growth row per scheme (Direct preferred)
+    return selectLatestGrowthEtfs(records);
   } catch (err) {
     return { error: `Failed to parse AMFI data: ${err.message}` };
   }
@@ -257,30 +318,65 @@ function categorizeEtfs(etfs, categories) {
   return result;
 }
 
-async function getCategorizedEtfList() {
-  let navData;
-  const latestNavFile = getLatestNavFile();
-  if (latestNavFile && fs.existsSync(latestNavFile)) {
-    navData = JSON.parse(fs.readFileSync(latestNavFile, 'utf8'));
-    return navData.categories || navData; // support both {categories: ...} and direct
-  } else {
-    console.log('No local file found, trying to fetch live from AMFI...');
-    const rawTxt = await fetchAmfiNavTxt();
-    if (!rawTxt) {
-      return { error: 'Failed to fetch live NAV data from AMFI.' };
+async function readCategoriesFromFile(filePath) {
+  const parsed = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
+  return parsed.categories || parsed; // support both {categories: ...} and direct
+}
+
+async function getCategorizedEtfList({ force = false } = {}) {
+  const todayFile = getTodayNavFilePath();
+
+  // 1. Only ever serve TODAY's cache. Serving an old file (the previous bug)
+  //    is what made the dashboard show stale/wrong NAVs after a few days.
+  if (!force) {
+    try {
+      const categories = await readCategoriesFromFile(todayFile);
+      if (hasFunds(categories)) return categories;
+      console.warn('[NAV] Today\'s cache is empty, refetching from AMFI...');
+    } catch (err) {
+      // No cache for today yet – fall through to a live fetch.
     }
+  }
+
+  // 2. Fetch fresh data from AMFI.
+  console.log('[NAV] Fetching live NAV data from AMFI...');
+  const rawTxt = await fetchAmfiNavTxt();
+  if (rawTxt) {
     const etfs = parseEtfFromRawTxt(rawTxt);
     if (etfs.error) {
       console.error('Parsing error:', etfs.error);
-      return etfs;
+    } else {
+      const categorized = categorizeEtfs(etfs, INITIAL_CATEGORIES);
+      if (hasFunds(categorized)) {
+        try {
+          await fs.promises.mkdir(NAV_DATA_DIR, { recursive: true });
+          await fs.promises.writeFile(todayFile, JSON.stringify({ categories: categorized }, null, 4));
+        } catch (writeErr) {
+          console.error('[NAV] Failed to write today\'s cache:', writeErr.message);
+        }
+        return categorized;
+      }
+      console.error('[NAV] Parsed AMFI data but no ETF funds were categorized.');
     }
-    const categorized = categorizeEtfs(etfs, INITIAL_CATEGORIES);
-    return categorized;
   }
+
+  // 3. Last resort: an old cache, but make the staleness loud and obvious.
+  const latestNavFile = getLatestNavFile();
+  if (latestNavFile) {
+    console.warn(`[NAV] Live fetch failed – falling back to STALE cache ${path.basename(latestNavFile)}.`);
+    const stale = await readCategoriesFromFile(latestNavFile);
+    if (hasFunds(stale)) return stale;
+  }
+
+  return { error: 'Failed to fetch live NAV data from AMFI.' };
 }
 
 module.exports = {
   getCategorizedEtfList,
   fetchAmfiNavTxt,
-  parseEtfFromRawTxt
+  parseEtfFromRawTxt,
+  getTodayNavFilePath,
+  getTodayDateString,
+  hasFunds,
+  NAV_DATA_DIR
 }; 
