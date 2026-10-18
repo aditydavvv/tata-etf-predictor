@@ -38,15 +38,6 @@ const ETF_CONFIG = {
     color: '#22d3ee',
     bgColor: 'rgba(34, 211, 238, 0.18)',
     currency: '₹'
-  },
-  'tata-gold-etf': {
-    symbol: 'TATAGOLD.NS',
-    name: 'Tata Gold ETF',
-    fullName: 'Tata Gold Exchange Traded Fund (NSE: TATAGOLD)',
-    emoji: '🥇',
-    color: '#fbbf24',
-    bgColor: 'rgba(251, 191, 36, 0.18)',
-    currency: '₹'
   }
 };
 

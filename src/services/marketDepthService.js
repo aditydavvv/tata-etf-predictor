@@ -3,7 +3,6 @@ import { fetchResilient } from '../utils/fetchResilient';
 const GROWW_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.DEV) ? '/groww' : 'https://www.groww.in';
 
 const ETF_PAGES = {
-  'gold-etf': { path: '/etfs/nippon-india-gold-bes', name: 'Gold ETF', symbol: 'GOLDBEES' },
   'tata-silver-etf': { path: '/etfs/tata-silver-exchange-traded-fund', name: 'Tata Silver ETF', symbol: 'TATSILV' }
 };
 
@@ -64,15 +63,4 @@ export async function fetchMarketDepth(etfType) {
     console.error(`Failed to fetch market depth for ${etfType}:`, error);
     return null;
   }
-}
-
-export async function fetchAllMarketDepth() {
-  const [gold, tataSilver] = await Promise.allSettled([
-    fetchMarketDepth('gold-etf'),
-    fetchMarketDepth('tata-silver-etf')
-  ]);
-  return {
-    gold: gold.status === 'fulfilled' ? gold.value : null,
-    tataSilver: tataSilver.status === 'fulfilled' ? tataSilver.value : null
-  };
 }
