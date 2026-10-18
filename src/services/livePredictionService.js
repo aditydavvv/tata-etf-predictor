@@ -10,19 +10,23 @@ const SEVERITY_WEIGHT = { high: 1.25, medium: 1, low: 0.6 };
  * Every input becomes a weighted vote. The weighted average is the score.
  * Returns `hasData: false` when neither input is available.
  */
-export function computeLivePrediction({ marketDepth, events = [] }) {
+export function computeLivePrediction({ marketDepth, events = [], adjustments = null }) {
+  const bias = adjustments?.bias ?? 0;
+  const orderBookFactor = adjustments?.orderBookFactor ?? 1;
+  const confidenceScale = adjustments?.confidenceScale ?? 1;
+
   const components = [];
 
   // 1. Order book: net buyer/seller pressure.
   if (marketDepth && marketDepth.total > 0 && Number.isFinite(marketDepth.buyPct)) {
-    const bias = Math.max(-1, Math.min(1, (marketDepth.buyPct - 50) / 50));
+    const biasValue = Math.max(-1, Math.min(1, (marketDepth.buyPct - 50) / 50));
     const detail = `${marketDepth.buyPct}% buyers · ${marketDepth.sellPct}% sellers · ratio ${marketDepth.ratio}`;
     components.push({
       kind: 'order-book',
       label: 'Buyers vs Sellers',
       detail,
-      value: bias,
-      weight: 1.5
+      value: biasValue,
+      weight: 1.5 * orderBookFactor
     });
   }
 
@@ -64,18 +68,24 @@ export function computeLivePrediction({ marketDepth, events = [] }) {
       confidence: 0,
       expectedMove: '—',
       score: 0,
+      rawScore: 0,
       components: [],
       events: [],
-      orderBook: null
+      orderBook: null,
+      adjustments: { bias, orderBookFactor, confidenceScale }
     };
   }
 
   const totalWeight = components.reduce((sum, c) => sum + c.weight, 0) || 1;
-  const score = components.reduce((sum, c) => sum + c.value * c.weight, 0) / totalWeight;
+  const rawScore = components.reduce((sum, c) => sum + c.value * c.weight, 0) / totalWeight;
+  // Self-correcting bias learned from prior prediction errors (predictionEngine).
+  const score = Math.max(-1, Math.min(1, rawScore + bias));
   const agreement = components.reduce((sum, c) => sum + Math.sign(c.value) * c.weight, 0) / totalWeight;
 
   const direction = score > 0.12 ? 'positive' : score < -0.12 ? 'negative' : 'neutral';
-  const confidence = Math.max(30, Math.min(94, Math.round(45 + Math.abs(agreement) * 40 + Math.abs(score) * 15)));
+  const confidence = Math.max(30, Math.min(94,
+    Math.round((45 + Math.abs(agreement) * 40 + Math.abs(score) * 15) * confidenceScale)
+  ));
 
   const band = Math.max(0.5, Math.abs(score) * 6);
   const expectedMove = direction === 'positive'
@@ -100,10 +110,12 @@ export function computeLivePrediction({ marketDepth, events = [] }) {
     confidence,
     expectedMove,
     score,
+    rawScore,
     orderBook,
     eventScore,
     drivers,
     components,
-    events: eventBreakdown
+    events: eventBreakdown,
+    adjustments: { bias, orderBookFactor, confidenceScale }
   };
 }

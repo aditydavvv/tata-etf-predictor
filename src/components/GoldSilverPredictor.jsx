@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { fetchIndianETFs } from '../services/marketDataService.js';
 import { globalEvents } from '../data/events.js';
 import { computeLivePrediction } from '../services/livePredictionService.js';
+import { loadModel } from '../services/predictionEngine.js';
 import useSilverDepth from '../hooks/useSilverDepth.js';
+import usePredictionEngine from '../hooks/usePredictionEngine.js';
 import MetalPriceChart from './MetalPriceChart.jsx';
 import SilverLivePrediction from './SilverLivePrediction.jsx';
 import SilverBuyersSellers from './SilverBuyersSellers.jsx';
+import PredictionAccuracyEngine from './PredictionAccuracyEngine.jsx';
 import './GoldSilverPredictor.css';
 
 function formatAsOf(isoString) {
@@ -19,6 +22,7 @@ function formatAsOf(isoString) {
 
 export default function GoldSilverPredictor() {
   const [indianETFs, setIndianETFs] = useState(null);
+  const [model, setModel] = useState(() => loadModel());
   const { depth, loading: depthLoading } = useSilverDepth();
 
   useEffect(() => {
@@ -34,7 +38,19 @@ export default function GoldSilverPredictor() {
   const tataSilver = indianETFs?.tataSilverETF ?? null;
   const asOfLabel = formatAsOf(tataSilver?.asOf);
 
-  const prediction = computeLivePrediction({ marketDepth: depth, events: globalEvents });
+  const price = tataSilver?.price ?? null;
+
+  const prediction = computeLivePrediction({
+    marketDepth: depth,
+    events: globalEvents,
+    adjustments: model
+  });
+
+  const engine = usePredictionEngine({ prediction, price, ready: !depthLoading });
+
+  useEffect(() => {
+    if (engine.model) setModel(engine.model);
+  }, [engine.model]);
 
   return (
     <section className="gold-silver-section">
@@ -46,6 +62,8 @@ export default function GoldSilverPredictor() {
       <MetalPriceChart etfType="tata-silver-etf" />
 
       <SilverLivePrediction prediction={prediction} depth={depth} loading={depthLoading} />
+
+      <PredictionAccuracyEngine stats={engine.stats} model={engine.model ?? model} loading={engine.loading} />
 
       <SilverBuyersSellers depth={depth} loading={depthLoading} />
 
