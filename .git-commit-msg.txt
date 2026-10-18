@@ -1,0 +1,7 @@
+Seed accuracy engine with a walk-forward backfill
+
+Add a real 5-session price-momentum signal (derivable from history)
+to the prediction model, then replay it over the last 90 real closes
+on first load. Each historical call is scored against the actual next
+close and tagged 'backtest', so the accuracy table populates instantly
+and the engine can calibrate from day one. Live days append on top.

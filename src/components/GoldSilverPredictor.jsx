@@ -3,6 +3,7 @@ import { fetchIndianETFs } from '../services/marketDataService.js';
 import { globalEvents } from '../data/events.js';
 import { computeLivePrediction } from '../services/livePredictionService.js';
 import { loadModel } from '../services/predictionEngine.js';
+import { loadSnapshot, getHistory } from '../services/priceSnapshot.js';
 import useSilverDepth from '../hooks/useSilverDepth.js';
 import usePredictionEngine from '../hooks/usePredictionEngine.js';
 import MetalPriceChart from './MetalPriceChart.jsx';
@@ -23,6 +24,7 @@ function formatAsOf(isoString) {
 export default function GoldSilverPredictor() {
   const [indianETFs, setIndianETFs] = useState(null);
   const [model, setModel] = useState(() => loadModel());
+  const [history, setHistory] = useState([]);
   const { depth, loading: depthLoading } = useSilverDepth();
 
   useEffect(() => {
@@ -35,6 +37,14 @@ export default function GoldSilverPredictor() {
     return () => clearInterval(etfInterval);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    loadSnapshot().then(() => {
+      if (!cancelled) setHistory(getHistory('TATSILV.NS'));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const tataSilver = indianETFs?.tataSilverETF ?? null;
   const asOfLabel = formatAsOf(tataSilver?.asOf);
 
@@ -43,6 +53,7 @@ export default function GoldSilverPredictor() {
   const prediction = computeLivePrediction({
     marketDepth: depth,
     events: globalEvents,
+    history,
     adjustments: model
   });
 

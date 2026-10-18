@@ -250,6 +250,26 @@
   margin-top: 14px;
 }
 
+.pa-mix {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin: -6px 0 16px;
+}
+
+.pa-src {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  vertical-align: middle;
+}
+
 @media (max-width: 720px) {
   .pa-stats-grid {
     grid-template-columns: 1fr 1fr;

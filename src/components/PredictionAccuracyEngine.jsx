@@ -62,6 +62,11 @@ export default function PredictionAccuracyEngine({ stats, model, loading }) {
         </div>
       </div>
 
+      <p className="pa-mix">
+        {stats.backtest ?? 0} backtested · {stats.live ?? 0} live prediction
+        {(stats.live ?? 0) === 1 ? '' : 's'}
+      </p>
+
       <div className="pa-body">
         <div className="pa-today">
           <h4>Today's logged call</h4>
@@ -122,7 +127,10 @@ export default function PredictionAccuracyEngine({ stats, model, loading }) {
               <tbody>
                 {stats.recent.map(e => (
                   <tr key={e.date}>
-                    <td className="pa-day">{e.date}</td>
+                    <td className="pa-day">
+                      {e.date}
+                      {e.source === 'backtest' && <span className="pa-src">BT</span>}
+                    </td>
                     <td className={`pa-dir ${e.direction}`}>{e.expectedMove}</td>
                     <td className={`pa-actual ${e.evaluation.realizedDirection}`}>
                       {fmtSigned(e.evaluation.realizedReturn)}%
@@ -142,8 +150,10 @@ export default function PredictionAccuracyEngine({ stats, model, loading }) {
       )}
 
       <p className="pa-note">
-        Predictions resolve against the next available TATSILV close from the daily price
-        snapshot. A move under ±0.15% counts as flat.
+        Rows tagged <span className="pa-src">BT</span> are a walk-forward backtest of the
+        same model over the last ~90 real sessions; untagged rows are live predictions.
+        Both resolve against the next real TATSILV close, and a move under ±0.15% counts
+        as flat.
       </p>
     </section>
   );

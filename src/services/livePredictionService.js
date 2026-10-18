@@ -3,14 +3,15 @@ import { predictETFReaction } from '../data/metals.js';
 const SEVERITY_WEIGHT = { high: 1.25, medium: 1, low: 0.6 };
 
 /**
- * Live prediction for the Tata Silver ETF, computed from two live inputs:
- *   1. Order-book buyers vs sellers (Groww / NSE market depth)
- *   2. Global events, mapped onto silver's historical reaction library
+ * Live prediction for the Tata Silver ETF, computed from three inputs:
+ *   1. Order-book buyers vs sellers (Groww / NSE market depth) — live only
+ *   2. Price momentum from the daily close series (available historically too)
+ *   3. Global events, mapped onto silver's historical reaction library
  *
  * Every input becomes a weighted vote. The weighted average is the score.
- * Returns `hasData: false` when neither input is available.
+ * Returns `hasData: false` when no input is available.
  */
-export function computeLivePrediction({ marketDepth, events = [], adjustments = null }) {
+export function computeLivePrediction({ marketDepth, events = [], history = [], adjustments = null }) {
   const bias = adjustments?.bias ?? 0;
   const orderBookFactor = adjustments?.orderBookFactor ?? 1;
   const confidenceScale = adjustments?.confidenceScale ?? 1;
@@ -30,7 +31,20 @@ export function computeLivePrediction({ marketDepth, events = [], adjustments = 
     });
   }
 
-  // 2. Global events scored against silver's historical reactions.
+  // 2. Price momentum: trailing 5-session return from the daily closes. This is
+  // the one signal that can also be replayed over history for a backtest.
+  const momentum = computeMomentum(history);
+  if (momentum) {
+    components.push({
+      kind: 'momentum',
+      label: 'Price momentum',
+      detail: `${momentum.changePct >= 0 ? '+' : ''}${momentum.changePct.toFixed(1)}% over ${momentum.lookback} sessions`,
+      value: momentum.value,
+      weight: 1
+    });
+  }
+
+  // 3. Global events scored against silver's historical reactions.
   const eventBreakdown = [];
   for (const event of events) {
     const reaction = predictETFReaction(event, 'silver', null, null);
@@ -118,4 +132,21 @@ export function computeLivePrediction({ marketDepth, events = [], adjustments = 
     events: eventBreakdown,
     adjustments: { bias, orderBookFactor, confidenceScale }
   };
+}
+
+const MOMENTUM_LOOKBACK = 5;
+/** Trailing return (in %) that maps to a full ±1 momentum vote. */
+const MOMENTUM_FULL_PCT = 3;
+
+/** Trailing-return momentum from a close series, or null when there isn't enough. */
+function computeMomentum(history) {
+  if (!Array.isArray(history) || history.length < MOMENTUM_LOOKBACK + 1) return null;
+
+  const last = history[history.length - 1]?.close;
+  const past = history[history.length - 1 - MOMENTUM_LOOKBACK]?.close;
+  if (!Number.isFinite(last) || !Number.isFinite(past) || past <= 0) return null;
+
+  const changePct = ((last - past) / past) * 100;
+  const value = Math.max(-1, Math.min(1, changePct / MOMENTUM_FULL_PCT));
+  return { changePct, value, lookback: MOMENTUM_LOOKBACK };
 }

@@ -16,9 +16,12 @@
  */
 
 import { loadSnapshot, getHistory } from './priceSnapshot.js';
+import { computeLivePrediction } from './livePredictionService.js';
+import { globalEvents } from '../data/events.js';
 
 const JOURNAL_KEY = 'silver-etf-prediction-journal-v1';
 const MODEL_KEY = 'silver-etf-prediction-model-v1';
+const BACKFILL_KEY = 'silver-etf-prediction-backfill-v1';
 
 /** Score -> percent move mapping, mirrored from livePredictionService (band = |score| * 6). */
 const SCORE_TO_PCT = 6;
@@ -28,6 +31,10 @@ const FLAT_EPSILON = 0.15;
 const MIN_SAMPLES = 3;
 /** EMA weight when blending freshly measured corrections into the stored model. */
 const EMA = 0.4;
+/** Number of past sessions replayed to seed the track record immediately. */
+const BACKFILL_SESSIONS = 90;
+/** Momentum needs this many prior closes before the first backtested prediction. */
+const BACKFILL_WARMUP = 6;
 
 export const DEFAULT_MODEL = {
   bias: 0,
@@ -112,12 +119,13 @@ export function saveModel(model) {
 }
 
 /** Record (or refresh) today's prediction. Idempotent per IST day. */
-export function recordPrediction(journal, prediction, price, now = Date.now()) {
+export function recordPrediction(journal, prediction, price, now = Date.now(), source = 'live') {
   if (!prediction?.hasData || !Number.isFinite(price) || price <= 0) return journal;
   const date = istDayKey(now);
   const entry = {
     date,
     ts: now,
+    source,
     price,
     direction: prediction.direction,
     expectedMove: prediction.expectedMove,
@@ -143,17 +151,25 @@ export function recordPrediction(journal, prediction, price, now = Date.now()) {
   return journal;
 }
 
+/** Normalise a snapshot history series into sorted { day, ms, close } rows. */
+function toHistoryRows(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .map(r => {
+      const ms = r.date?.getTime?.() ?? new Date(r.date).getTime();
+      return { ms, day: Number.isFinite(ms) ? istDayKey(ms) : null, close: r.close };
+    })
+    .filter(r => Number.isFinite(r.close) && r.day)
+    .sort((a, b) => (a.day < b.day ? -1 : 1));
+}
+
 /**
  * Score every unevaluated entry against the first close strictly after its day.
  * Mutates the journal entries in place and returns the number newly scored.
  */
 export function evaluateJournal(journal, history) {
-  if (!Array.isArray(history) || history.length === 0) return 0;
-
-  const rows = history
-    .map(r => ({ day: istDayKey(r.date?.getTime?.() ?? new Date(r.date).getTime()), close: r.close }))
-    .filter(r => Number.isFinite(r.close) && r.day)
-    .sort((a, b) => (a.day < b.day ? -1 : 1));
+  const rows = toHistoryRows(history);
+  if (rows.length === 0) return 0;
 
   let scored = 0;
   for (const entry of journal) {
@@ -178,6 +194,43 @@ export function evaluateJournal(journal, history) {
     scored += 1;
   }
   return scored;
+}
+
+function hasBackfilled() {
+  return readJSON(BACKFILL_KEY, null)?.done === true;
+}
+
+function markBackfilled(sessions) {
+  writeJSON(BACKFILL_KEY, { done: true, sessions, at: Date.now() });
+}
+
+/**
+ * Walk-forward backfill. Replays the model over the last `sessions` closes using
+ * only data available on each day, then leaves the entries for evaluateJournal to
+ * score against the real next close. Nothing is invented — every call is produced
+ * by the same scoring path as the live prediction and resolved by a real price.
+ * Rows are tagged `source: 'backtest'` so the UI can tell them apart from live ones.
+ */
+export function backfillJournal(journal, history, model, { sessions = BACKFILL_SESSIONS } = {}) {
+  const rows = toHistoryRows(history);
+  const end = rows.length - 1; // last row has no "next close" to resolve against
+  if (rows.length < BACKFILL_WARMUP + 1) return 0;
+
+  const start = Math.max(BACKFILL_WARMUP - 1, end - sessions);
+  let added = 0;
+
+  for (let i = start; i < end; i++) {
+    const prediction = computeLivePrediction({
+      marketDepth: null,
+      events: globalEvents,
+      history: rows.slice(0, i + 1),
+      adjustments: model
+    });
+    if (!prediction.hasData) continue;
+    recordPrediction(journal, prediction, rows[i].close, rows[i].ms, 'backtest');
+    added += 1;
+  }
+  return added;
 }
 
 /**
@@ -246,6 +299,8 @@ function summarize(journal, model) {
   return {
     total: journal.length,
     evaluated: evaluated.length,
+    backtest: journal.filter(e => e.source === 'backtest').length,
+    live: journal.filter(e => e.source !== 'backtest').length,
     hits,
     hitRate: evaluated.length ? parseFloat((hits / evaluated.length).toFixed(3)) : null,
     avgAbsError: evaluated.length
@@ -266,6 +321,14 @@ export async function runEngine({ prediction, price }) {
   const journal = loadJournal();
   const prevModel = loadModel();
 
+  // Seed the track record from real history the first time, so the engine has
+  // evidence to calibrate from immediately instead of waiting days.
+  let backfilled = 0;
+  if (!hasBackfilled() && history.length > 0) {
+    backfilled = backfillJournal(journal, history, prevModel);
+    markBackfilled(backfilled);
+  }
+
   if (prediction?.hasData && Number.isFinite(price)) {
     recordPrediction(journal, prediction, price);
   }
@@ -275,7 +338,7 @@ export async function runEngine({ prediction, price }) {
   saveJournal(journal);
   saveModel(model);
 
-  return { journal, model, newlyScored, stats: summarize(journal, model) };
+  return { journal, model, newlyScored, backfilled, stats: summarize(journal, model) };
 }
 
 export { summarize };
