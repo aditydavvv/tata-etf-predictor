@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { fetchIndianETFs } from '../services/marketDataService.js';
+import { globalEvents } from '../data/events.js';
+import { computeLivePrediction } from '../services/livePredictionService.js';
+import useSilverDepth from '../hooks/useSilverDepth.js';
 import MetalPriceChart from './MetalPriceChart.jsx';
+import SilverLivePrediction from './SilverLivePrediction.jsx';
 import SilverBuyersSellers from './SilverBuyersSellers.jsx';
 import './GoldSilverPredictor.css';
 
@@ -15,6 +19,7 @@ function formatAsOf(isoString) {
 
 export default function GoldSilverPredictor() {
   const [indianETFs, setIndianETFs] = useState(null);
+  const { depth, loading: depthLoading } = useSilverDepth();
 
   useEffect(() => {
     const loadETFs = async () => {
@@ -29,6 +34,8 @@ export default function GoldSilverPredictor() {
   const tataSilver = indianETFs?.tataSilverETF ?? null;
   const asOfLabel = formatAsOf(tataSilver?.asOf);
 
+  const prediction = computeLivePrediction({ marketDepth: depth, events: globalEvents });
+
   return (
     <section className="gold-silver-section">
       <div className="section-header">
@@ -38,7 +45,9 @@ export default function GoldSilverPredictor() {
 
       <MetalPriceChart etfType="tata-silver-etf" />
 
-      <SilverBuyersSellers />
+      <SilverLivePrediction prediction={prediction} depth={depth} loading={depthLoading} />
+
+      <SilverBuyersSellers depth={depth} loading={depthLoading} />
 
       {!tataSilver && (
         <p className="data-warning">

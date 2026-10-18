@@ -1,8 +1,4 @@
-import { useState, useEffect } from 'react';
-import { fetchMarketDepth } from '../services/marketDepthService.js';
 import './SilverBuyersSellers.css';
-
-const REFRESH_MS = 5 * 60 * 1000;
 
 const SENTIMENT_LABELS = {
   'strong-buyers': { text: '🟢 Strong Buying', tone: 'buyers' },
@@ -12,24 +8,7 @@ const SENTIMENT_LABELS = {
   'strong-sellers': { text: '🔴 Strong Selling', tone: 'sellers' }
 };
 
-export default function SilverBuyersSellers() {
-  const [depth, setDepth] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      const data = await fetchMarketDepth('tata-silver-etf');
-      if (!cancelled) {
-        setDepth(data);
-        setLoading(false);
-      }
-    };
-    load();
-    const interval = setInterval(load, REFRESH_MS);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
-
+export default function SilverBuyersSellers({ depth, loading = false }) {
   const sentiment = depth ? SENTIMENT_LABELS[depth.sentiment] : null;
   const updated = depth?.lastUpdated
     ? new Date(depth.lastUpdated).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
