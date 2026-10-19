@@ -40,20 +40,19 @@ export function computeLivePrediction({ marketDepth, events = [], history = [], 
       label: 'Price momentum',
       detail: `${momentum.changePct >= 0 ? '+' : ''}${momentum.changePct.toFixed(1)}% over ${momentum.lookback} sessions`,
       value: momentum.value,
-      weight: 1
+      weight: 1.5
     });
   }
 
-  // 3. Global events scored against silver's historical reactions.
+  // 3. Global events scored against silver's historical reactions. Events are a
+  // slow-moving backdrop, so they are aggregated into a SINGLE weighted vote —
+  // otherwise a dozen simultaneous events would swamp the daily signals.
   const eventBreakdown = [];
   for (const event of events) {
     const reaction = predictETFReaction(event, 'silver', null, null);
     if (!reaction) continue;
 
     const dir = reaction.prediction === 'positive' ? 1 : reaction.prediction === 'negative' ? -1 : 0;
-    const value = dir * Math.min(1, reaction.confidence / 100);
-    const weight = (SEVERITY_WEIGHT[event.severity] ?? 1) * (dir !== 0 ? 1 : 0.35);
-
     eventBreakdown.push({
       id: event.id,
       title: event.title,
@@ -62,16 +61,22 @@ export function computeLivePrediction({ marketDepth, events = [], history = [], 
       direction: reaction.prediction,
       confidence: reaction.confidence,
       expectedMove: reaction.expectedMove,
-      value,
-      weight
+      value: dir * Math.min(1, reaction.confidence / 100),
+      weight: (SEVERITY_WEIGHT[event.severity] ?? 1) * (dir !== 0 ? 1 : 0.35)
     });
+  }
 
+  const eventVotes = eventBreakdown.reduce((sum, e) => sum + e.value * e.weight, 0);
+  const eventWeight = eventBreakdown.reduce((sum, e) => sum + e.weight, 0) || 1;
+  const eventScore = eventVotes / eventWeight;
+
+  if (eventBreakdown.length > 0) {
     components.push({
       kind: 'event',
-      label: event.title,
-      detail: `${dir > 0 ? '+' : dir < 0 ? '-' : ''}${reaction.expectedMove} · ${reaction.confidence}% confidence`,
-      value,
-      weight
+      label: 'Global events',
+      detail: `net ${eventScore >= 0 ? '+' : ''}${(eventScore * 100).toFixed(0)}% · ${eventBreakdown.length} active`,
+      value: eventScore,
+      weight: 1
     });
   }
 
@@ -109,9 +114,6 @@ export function computeLivePrediction({ marketDepth, events = [], history = [], 
       : `±${(band * 0.7).toFixed(1)}%`;
 
   const orderBook = components.find(c => c.kind === 'order-book') ?? null;
-  const eventVotes = eventBreakdown.reduce((sum, e) => sum + e.value * e.weight, 0);
-  const eventWeight = eventBreakdown.reduce((sum, e) => sum + e.weight, 0) || 1;
-  const eventScore = eventVotes / eventWeight;
 
   const drivers = components
     .filter(c => Math.sign(c.value) === (direction === 'negative' ? -1 : direction === 'positive' ? 1 : 0))
