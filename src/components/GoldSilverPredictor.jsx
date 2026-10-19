@@ -88,8 +88,6 @@ export default function GoldSilverPredictor() {
 
       <MetalPriceChart etfType="tata-silver-etf" />
 
-      <SilverLivePrediction prediction={prediction} depth={depth} loading={depthLoading} />
-
       <PositionsPanel
         lots={position.lots}
         strategy={position.strategy}
@@ -100,6 +98,8 @@ export default function GoldSilverPredictor() {
       />
 
       <SellSignal result={positionResult} priceAsOf={asOfLabel} />
+
+      <SilverLivePrediction prediction={prediction} depth={depth} loading={depthLoading} />
 
       <PredictionAccuracyEngine stats={engine.stats} model={engine.model ?? model} loading={engine.loading} />
 
