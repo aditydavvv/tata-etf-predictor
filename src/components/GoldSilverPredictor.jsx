@@ -1,15 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { fetchIndianETFs } from '../services/marketDataService.js';
 import { globalEvents } from '../data/events.js';
 import { computeLivePrediction } from '../services/livePredictionService.js';
 import { loadModel } from '../services/predictionEngine.js';
 import { loadSnapshot, getHistory } from '../services/priceSnapshot.js';
+import { evaluatePosition } from '../services/positionAdvisor.js';
 import useSilverDepth from '../hooks/useSilverDepth.js';
 import usePredictionEngine from '../hooks/usePredictionEngine.js';
+import usePosition from '../hooks/usePosition.js';
 import MetalPriceChart from './MetalPriceChart.jsx';
 import SilverLivePrediction from './SilverLivePrediction.jsx';
 import SilverBuyersSellers from './SilverBuyersSellers.jsx';
 import PredictionAccuracyEngine from './PredictionAccuracyEngine.jsx';
+import PositionsPanel from './PositionsPanel.jsx';
+import SellSignal from './SellSignal.jsx';
 import './GoldSilverPredictor.css';
 
 function formatAsOf(isoString) {
@@ -63,6 +67,18 @@ export default function GoldSilverPredictor() {
     if (engine.model) setModel(engine.model);
   }, [engine.model]);
 
+  const position = usePosition();
+
+  const positionResult = useMemo(
+    () => evaluatePosition({
+      lots: position.lots,
+      strategy: position.strategy,
+      currentPrice: price,
+      history
+    }),
+    [position.lots, position.strategy, price, history]
+  );
+
   return (
     <section className="gold-silver-section">
       <div className="section-header">
@@ -73,6 +89,17 @@ export default function GoldSilverPredictor() {
       <MetalPriceChart etfType="tata-silver-etf" />
 
       <SilverLivePrediction prediction={prediction} depth={depth} loading={depthLoading} />
+
+      <PositionsPanel
+        lots={position.lots}
+        strategy={position.strategy}
+        result={positionResult}
+        addLot={position.addLot}
+        removeLot={position.removeLot}
+        updateStrategy={position.updateStrategy}
+      />
+
+      <SellSignal result={positionResult} priceAsOf={asOfLabel} />
 
       <PredictionAccuracyEngine stats={engine.stats} model={engine.model ?? model} loading={engine.loading} />
 
