@@ -19,9 +19,17 @@ import { loadSnapshot, getHistory } from './priceSnapshot.js';
 import { computeLivePrediction } from './livePredictionService.js';
 import { globalEvents } from '../data/events.js';
 
-const JOURNAL_KEY = 'silver-etf-prediction-journal-v1';
-const MODEL_KEY = 'silver-etf-prediction-model-v1';
-const BACKFILL_KEY = 'silver-etf-prediction-backfill-v1';
+// Keys are versioned. Bumping to v2 discards journals/models seeded before the
+// weight rebalance (which produced one-sided, always-UP rows) and forces a fresh
+// walk-forward backfill under the corrected scoring.
+const JOURNAL_KEY = 'silver-etf-prediction-journal-v2';
+const MODEL_KEY = 'silver-etf-prediction-model-v2';
+const BACKFILL_KEY = 'silver-etf-prediction-backfill-v2';
+const LEGACY_KEYS = [
+  'silver-etf-prediction-journal-v1',
+  'silver-etf-prediction-model-v1',
+  'silver-etf-prediction-backfill-v1'
+];
 
 /** Score -> percent move mapping, mirrored from livePredictionService (band = |score| * 6). */
 const SCORE_TO_PCT = 6;
@@ -200,6 +208,19 @@ function hasBackfilled() {
   return readJSON(BACKFILL_KEY, null)?.done === true;
 }
 
+/** Remove storage written by earlier schema versions so it stops consuming space. */
+function purgeLegacyKeys() {
+  const store = safeStorage();
+  if (!store) return;
+  for (const key of LEGACY_KEYS) {
+    try {
+      store.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function markBackfilled(sessions) {
   writeJSON(BACKFILL_KEY, { done: true, sessions, at: Date.now() });
 }
@@ -316,6 +337,7 @@ function summarize(journal, model) {
 
 /** Load snapshot + history, journal today, score pending entries, retrain. */
 export async function runEngine({ prediction, price }) {
+  purgeLegacyKeys();
   await loadSnapshot();
   const history = getHistory('TATSILV.NS');
   const journal = loadJournal();
